@@ -43,17 +43,9 @@ pub fn process(input: String) {
     let result: u32 = input
         .lines()
         .map(|row| {
-            let split1 = row.split(": ").collect::<Vec<_>>();
-            let game_id: u32 = split1
-                .first()
-                .unwrap()
-                .split_ascii_whitespace()
-                .last()
-                .unwrap()
-                .parse()
-                .unwrap();
+            let split = row.split(": ").collect::<Vec<_>>();
 
-            let games = split1
+            let games = split
                 .last()
                 .unwrap()
                 .split(";")
