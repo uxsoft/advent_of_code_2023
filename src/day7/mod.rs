@@ -1,21 +1,6 @@
-use nom::{
-    branch::alt,
-    bytes::complete::{is_a, tag, take_while_m_n},
-    character::{
-        complete::{alphanumeric1, digit1, line_ending, one_of, space1},
-        is_digit,
-    },
-    combinator::{map, map_res, value},
-    complete::take,
-    error::Error,
-    multi::{many1, separated_list1},
-    number,
-    sequence::{self, separated_pair},
-    IResult, Parser,
-};
-use nom_supreme::ParserExt;
+use itertools::Itertools;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum Card {
     A,
     K,
@@ -50,7 +35,13 @@ impl Card {
     }
 }
 
-#[derive(Debug, PartialEq)]
+impl PartialOrd for Card {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.value().partial_cmp(&other.value())
+    }
+}
+
+#[derive(Debug)]
 enum Kind {
     FiveOfAKind,
     FourOfAKind,
@@ -75,16 +66,13 @@ impl Kind {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 struct Hand {
     cards: Vec<Card>,
 }
 
 impl Hand {
     pub fn new(cards: Vec<Card>) -> Self {
-        let mut cards = cards;
-        cards.sort_by_key(|c| 20 - c.value());
-
         Self { cards }
     }
 
@@ -93,36 +81,67 @@ impl Hand {
         Hand::new(cards)
     }
 
-    pub fn kind(&self) -> Kind {
-        let matching_pairs: u8 = self
-            .cards
+    pub fn kind(&self) -> (Kind, u8) {
+        let mut ordered_cards = self.cards;
+        ordered_cards.sort_by_key(|c| c.value());
+
+        let matching_tripples: Vec<_> = ordered_cards
+            .windows(3)
+            .filter(|w| w[0].value() == w[1].value() && w[1].value() == w[2].value())
+            .collect();
+
+        let tripple_value = matching_tripples.first().map(|w| w[0].value()).unwrap_or(0);
+        let tripple_count = matching_tripples.len();
+
+        let matching_pairs: Vec<_> = ordered_cards
             .windows(2)
-            .map(|w| if w[0].value() == w[1].value() { 1 } else { 0 })
-            .sum();
+            .filter(|w| w[0].value() == w[1].value())
+            .collect();
 
-        // println!("Comparing {:?} with pairs: {}", self.cards, matching_pairs);
+        let pair_value = matching_pairs.first().map(|w| w[0].value()).unwrap_or(0);
+        let pair_count = matching_pairs.len();
 
-        match matching_pairs {
-            4 => Kind::FiveOfAKind,
-            3 if self.cards.get(0).unwrap().value() == self.cards.get(3).unwrap().value() => {
-                Kind::FourOfAKind
+        match (tripple_count, pair_count) {
+            (3, _) => (Kind::FiveOfAKind, tripple_value),
+            (2, _) => (Kind::FourOfAKind, tripple_value),
+            (1, 3) => (Kind::FullHouse, tripple_value),
+            (1, _) => (Kind::ThreeOfAKind, tripple_value),
+            (0, 2) => (Kind::TwoPairs, pair_value),
+            (0, 1) => (Kind::OnePair, pair_value),
+            _ => (Kind::HighCard, 0),
+        }
+    }
+
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let (kind, _) = self.kind();
+        let (other_kind, _) = other.kind();
+
+        if kind.rank() == other_kind.rank() {
+            for (card, other_card) in self.cards.iter().zip(&other.cards) {
+                if card.value() != other_card.value() {
+                    return card.value().cmp(&other_card.value());
+                }
             }
-            3 => Kind::FullHouse,
-            2 if self.cards.get(0).unwrap().value() == self.cards.get(2).unwrap().value() => {
-                Kind::ThreeOfAKind
-            }
-            2 => Kind::TwoPairs,
-            1 => Kind::OnePair,
-            _ => Kind::HighCard,
+            return std::cmp::Ordering::Equal;
+        } else {
+            return kind.rank().cmp(&other_kind.rank());
         }
     }
 
     pub fn card_value(&self) -> usize {
-        self.cards.iter().map(|c| c.value() as usize).sum()
+        self.cards
+            .iter()
+            .enumerate()
+            .map(|(i, c)| c.value() as usize * 10usize.pow(i as u32 + 1))
+            .sum()
     }
 
     pub fn value(&self) -> usize {
-        &self.kind().rank() * 1000 + &self.card_value()
+        let (kind, dominant_card) = self.kind();
+        let value = kind.rank() * 1_000_000_0000
+            + dominant_card as usize * 10_000_0000
+            + &self.card_value();
+        return value;
     }
 }
 
@@ -143,17 +162,18 @@ fn parse(input: &str) -> Vec<(Hand, usize)> {
 
 pub fn process(input: String) {
     let mut table = parse(&input);
-    table.sort_by_cached_key(|(h, bet)| h.value());
+    table.sort_by(|(a, _), (b, _)| a.cmp(b));
 
     let result: usize = table
         .iter()
         .enumerate()
         .map(|(i, (h, b))| {
-            println!("Hand {i} bet {b}");
+            println!("{i}: Hand {h:?} bet {b}");
             return b * (i + 1);
         })
         .sum();
 
+    // 249788985 is too high
     println!("{:?}", result);
 }
 
@@ -163,10 +183,20 @@ mod tests {
 
     #[test]
     fn hand_kind() {
-        assert_eq!(Hand::parse("AAAAA").kind(), Kind::FiveOfAKind);
-        assert_eq!(Hand::parse("AATAA").kind(), Kind::FourOfAKind);
-        assert_eq!(Hand::parse("33322").kind(), Kind::FullHouse);
-        assert_eq!(Hand::parse("33321").kind(), Kind::ThreeOfAKind);
-        assert_eq!(Hand::parse("6565Q").kind(), Kind::TwoPairs);
+        assert_eq!(Hand::parse("AAAAA").kind(), (Kind::FiveOfAKind, 14));
+        assert_eq!(Hand::parse("AATAA").kind(), (Kind::FourOfAKind, 14));
+        assert_eq!(Hand::parse("33322").kind(), (Kind::FullHouse, 3));
+        assert_eq!(Hand::parse("33321").kind(), (Kind::ThreeOfAKind, 3));
+        assert_eq!(Hand::parse("6565Q").kind(), (Kind::TwoPairs, 6));
+        assert_eq!(Hand::parse("333AQ").kind(), (Kind::ThreeOfAKind, 3));
+        assert_eq!(Hand::parse("23456").kind(), (Kind::HighCard, 0))
+    }
+
+    #[test]
+    fn hand_order() {
+        assert_eq!(
+            Hand::parse("22345").value() > Hand::parse("AQTJ9").value(),
+            true
+        );
     }
 }
