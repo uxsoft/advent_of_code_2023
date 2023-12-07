@@ -69,6 +69,7 @@ pub fn part2(input: String) {
         
         .map(|(time, limit)| {
             (1..*time)
+                .progress_count(*time)
                 .map(|hold| {
                     let speed = hold;
                     let time_remaining = time - hold;
