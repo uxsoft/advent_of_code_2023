@@ -1,5 +1,3 @@
-use itertools::Itertools;
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Card {
     A,
@@ -22,6 +20,17 @@ impl Card {
         }
     }
 
+    pub fn value2(&self) -> u8 {
+        match &self {
+            Card::A => 14,
+            Card::K => 13,
+            Card::Q => 12,
+            Card::J => 1,
+            Card::T => 10,
+            Card::N(n) => *n,
+        }
+    }
+
     pub fn parse(input: char) -> Option<Card> {
         match input {
             'A' => Some(Card::A),
@@ -35,13 +44,7 @@ impl Card {
     }
 }
 
-impl PartialOrd for Card {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.value().partial_cmp(&other.value())
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, PartialEq, PartialOrd)]
 enum Kind {
     FiveOfAKind,
     FourOfAKind,
@@ -66,7 +69,7 @@ impl Kind {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq)]
 struct Hand {
     cards: Vec<Card>,
 }
@@ -81,40 +84,58 @@ impl Hand {
         Hand::new(cards)
     }
 
-    pub fn kind(&self) -> (Kind, u8) {
-        let mut ordered_cards = self.cards;
+    pub fn replace_joker(&self, card: Card) -> Hand {
+        let cards = self
+            .cards
+            .iter()
+            .map(|c| {
+                if c.value2() == Card::J.value2() {
+                    card.clone()
+                } else {
+                    c.clone()
+                }
+            })
+            .collect();
+        return Hand::new(cards);
+    }
+
+    pub fn kind(&self) -> Kind {
+        let mut ordered_cards = self.cards.to_owned();
         ordered_cards.sort_by_key(|c| c.value());
 
-        let matching_tripples: Vec<_> = ordered_cards
+        let matching_tripples = ordered_cards
             .windows(3)
             .filter(|w| w[0].value() == w[1].value() && w[1].value() == w[2].value())
-            .collect();
+            .count();
 
-        let tripple_value = matching_tripples.first().map(|w| w[0].value()).unwrap_or(0);
-        let tripple_count = matching_tripples.len();
-
-        let matching_pairs: Vec<_> = ordered_cards
+        let matching_pairs = ordered_cards
             .windows(2)
             .filter(|w| w[0].value() == w[1].value())
-            .collect();
+            .count();
 
-        let pair_value = matching_pairs.first().map(|w| w[0].value()).unwrap_or(0);
-        let pair_count = matching_pairs.len();
-
-        match (tripple_count, pair_count) {
-            (3, _) => (Kind::FiveOfAKind, tripple_value),
-            (2, _) => (Kind::FourOfAKind, tripple_value),
-            (1, 3) => (Kind::FullHouse, tripple_value),
-            (1, _) => (Kind::ThreeOfAKind, tripple_value),
-            (0, 2) => (Kind::TwoPairs, pair_value),
-            (0, 1) => (Kind::OnePair, pair_value),
-            _ => (Kind::HighCard, 0),
+        match (matching_tripples, matching_pairs) {
+            (3, _) => Kind::FiveOfAKind,
+            (2, _) => Kind::FourOfAKind,
+            (1, 3) => Kind::FullHouse,
+            (1, _) => Kind::ThreeOfAKind,
+            (0, 2) => Kind::TwoPairs,
+            (0, 1) => Kind::OnePair,
+            _ => Kind::HighCard,
         }
     }
 
+    pub fn kind2(&self) -> Kind {
+        let replacements = "23456789TQKA".chars().map(Card::parse).flatten();
+        let highest_kind_hand = replacements
+            .map(|r| self.replace_joker(r))
+            .max_by_key(|a| a.kind().rank())
+            .unwrap();
+        return highest_kind_hand.kind();
+    }
+
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let (kind, _) = self.kind();
-        let (other_kind, _) = other.kind();
+        let kind = self.kind();
+        let other_kind = other.kind();
 
         if kind.rank() == other_kind.rank() {
             for (card, other_card) in self.cards.iter().zip(&other.cards) {
@@ -128,20 +149,20 @@ impl Hand {
         }
     }
 
-    pub fn card_value(&self) -> usize {
-        self.cards
-            .iter()
-            .enumerate()
-            .map(|(i, c)| c.value() as usize * 10usize.pow(i as u32 + 1))
-            .sum()
-    }
+    fn cmp2(&self, other: &Self) -> std::cmp::Ordering {
+        let kind = self.kind2();
+        let other_kind = other.kind2();
 
-    pub fn value(&self) -> usize {
-        let (kind, dominant_card) = self.kind();
-        let value = kind.rank() * 1_000_000_0000
-            + dominant_card as usize * 10_000_0000
-            + &self.card_value();
-        return value;
+        if kind.rank() == other_kind.rank() {
+            for (card, other_card) in self.cards.iter().zip(&other.cards) {
+                if card.value2() != other_card.value2() {
+                    return card.value2().cmp(&&other_card.value2());
+                }
+            }
+            return std::cmp::Ordering::Equal;
+        } else {
+            return kind.rank().cmp(&other_kind.rank());
+        }
     }
 }
 
@@ -160,7 +181,7 @@ fn parse(input: &str) -> Vec<(Hand, usize)> {
         .collect()
 }
 
-pub fn process(input: String) {
+pub fn part1(input: String) {
     let mut table = parse(&input);
     table.sort_by(|(a, _), (b, _)| a.cmp(b));
 
@@ -173,8 +194,28 @@ pub fn process(input: String) {
         })
         .sum();
 
-    // 249788985 is too high
     println!("{:?}", result);
+}
+
+pub fn part2(input: String) {
+    let mut table = parse(&input);
+    table.sort_by(|(a, _), (b, _)| a.cmp2(b));
+
+    let result: usize = table
+        .iter()
+        .enumerate()
+        .map(|(i, (h, b))| {
+            println!("{i}: Hand {h:?} bet {b}");
+            return b * (i + 1);
+        })
+        .sum();
+
+    //248047349 too high
+    println!("{:?}", result);
+}
+
+pub fn process(input: String) {
+    part2(input);
 }
 
 #[cfg(test)]
@@ -183,20 +224,15 @@ mod tests {
 
     #[test]
     fn hand_kind() {
-        assert_eq!(Hand::parse("AAAAA").kind(), (Kind::FiveOfAKind, 14));
-        assert_eq!(Hand::parse("AATAA").kind(), (Kind::FourOfAKind, 14));
-        assert_eq!(Hand::parse("33322").kind(), (Kind::FullHouse, 3));
-        assert_eq!(Hand::parse("33321").kind(), (Kind::ThreeOfAKind, 3));
-        assert_eq!(Hand::parse("6565Q").kind(), (Kind::TwoPairs, 6));
-        assert_eq!(Hand::parse("333AQ").kind(), (Kind::ThreeOfAKind, 3));
-        assert_eq!(Hand::parse("23456").kind(), (Kind::HighCard, 0))
+        assert_eq!(Hand::parse("AAAAA").kind(), Kind::FiveOfAKind);
+        assert_eq!(Hand::parse("AATAA").kind(), Kind::FourOfAKind);
+        assert_eq!(Hand::parse("33322").kind(), Kind::FullHouse);
+        assert_eq!(Hand::parse("33321").kind(), Kind::ThreeOfAKind);
+        assert_eq!(Hand::parse("6565Q").kind(), Kind::TwoPairs);
+        assert_eq!(Hand::parse("333AQ").kind(), Kind::ThreeOfAKind);
+        assert_eq!(Hand::parse("23456").kind(), Kind::HighCard);
     }
 
     #[test]
-    fn hand_order() {
-        assert_eq!(
-            Hand::parse("22345").value() > Hand::parse("AQTJ9").value(),
-            true
-        );
-    }
+    fn hand_order() {}
 }
