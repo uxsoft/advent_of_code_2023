@@ -51,10 +51,10 @@ pub fn part1(input: String) {
     println!("Result: {i}");
 }
 
-pub fn part2(input: String) {
+pub fn part2_bf(input: String) {
     let (directions, nodes) = parse(&input);
 
-    let mut i = 0;
+    let mut i: u64 = 0;
     let mut current_nodes: Vec<&str> = nodes
         .keys()
         .filter(|n| n.ends_with("A"))
@@ -78,12 +78,56 @@ pub fn part2(input: String) {
             break;
         }
 
-        // println!("{i}: {current_nodes:?}");
+        if i % 10_000_000 == 0 {
+            println!("{i}");
+        }
     }
 
     println!("Result: {i}");
 }
 
+pub fn part2_trends(input: String) {
+    let (directions, nodes) = parse(&input);
+
+    let mut cycles: Vec<u64> = vec![];
+
+    for starting_node in nodes.keys().filter(|n| n.ends_with('A')) {
+        let mut i: usize = 0;
+        let mut current_node = starting_node;
+        let mut trends: Vec<(usize, usize)> = vec![];
+
+        for (direction_pos, direction) in directions.chars().enumerate().cycle() {
+            let (l, r) = nodes.get(current_node).unwrap();
+
+            current_node = match direction {
+                'L' => l,
+                'R' => r,
+                _ => r,
+            };
+
+            i += 1;
+
+            if current_node.ends_with('Z') {
+                let (_, last) = trends.last().unwrap_or(&(0, 0));
+                let delta = i - last;
+                let new_trend = (direction_pos, delta);
+                if trends.contains(&new_trend) {
+                    trends.push(new_trend);
+                    cycles.push(delta as u64);
+                    println!("[{starting_node}]: {trends:?}");
+                    break;
+                } else {
+                    trends.push(new_trend);
+                }
+            }
+        }
+    }
+    let lcm = reikna::factor::lcm_all(&cycles);
+
+    println!("Result: {lcm}");
+    // Then LCM (trends)
+}
+
 pub fn process(input: String) {
-    part2(input)
+    part2_trends(input)
 }
