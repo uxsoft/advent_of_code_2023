@@ -1,8 +1,7 @@
 use itertools::Itertools;
-use std::collections::{BTreeMap, HashSet, VecDeque, HashMap};
-use crate::day10::Pipe::{EastWest, NorthEast, NorthSouth, NorthWest, SouthEast, SouthWest};
+use std::collections::HashSet;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 enum Direction {
     North,
     South,
@@ -18,6 +17,17 @@ impl Direction {
             South => North,
             East => West,
             West => East,
+        }
+    }
+
+    pub fn translate(&self, point: &(usize, usize)) -> (usize, usize) {
+        use Direction::*;
+
+        match self {
+            North => (point.0, point.1 - 1),
+            South => (point.0, point.1 + 1),
+            East => (point.0 + 1, point.1),
+            West => (point.0 - 1, point.1),
         }
     }
 }
@@ -79,24 +89,24 @@ impl Pipe {
         }
     }
 
-    fn to_directional_char(&self, direction: &Direction) -> char {
-        use Pipe::*;
+    fn traverse(&self, direction: Direction) -> Direction {
         use Direction::*;
+        use Pipe::*;
 
         match (self, direction) {
-            (NorthSouth, North) => '↑',
-            (NorthSouth, South) => '↓',
-            (EastWest, East) => '→',
-            (EastWest, West) => '←',
-            (NorthEast, North) => '⬑',
-            (NorthEast, East) => '↳',
-            (NorthWest, North) => '⬏',
-            (NorthWest, West) => '↲',
-            (SouthWest, South) => '⬎',
-            (SouthWest, West) => '↰',
-            (SouthEast, South) => '⬐',
-            (SouthEast, East) => '↱',
-            (p, _) => p.to_char()
+            (NorthSouth, North) => North,
+            (NorthSouth, South) => South,
+            (EastWest, East) => East,
+            (EastWest, West) => West,
+            (NorthEast, West) => North,
+            (NorthEast, South) => East,
+            (NorthWest, South) => West,
+            (NorthWest, East) => North,
+            (SouthWest, North) => West,
+            (SouthWest, East) => South,
+            (SouthEast, North) => East,
+            (SouthEast, West) => South,
+            (p, d) => panic!("Didn't expect to traverse pipe ({p:?} from {d:?}"),
         }
     }
 }
@@ -116,44 +126,11 @@ impl PipeMaze {
         PipeMaze { pipes }
     }
 
-    fn get(&self, x: i32, y: i32) -> Pipe {
-        if x >= 0 && y >= 0 {
-            *self
-                .pipes
-                .get(y as usize)
-                .and_then(|row| row.get(x as usize))
-                .unwrap_or(&Pipe::Ground)
-        } else {
-            Pipe::Ground
-        }
-    }
-
-    fn connections(&self) -> BTreeMap<(usize, usize), Vec<(usize, usize)>> {
-        let mut endings: BTreeMap<(usize, usize), Vec<(usize, usize)>> = BTreeMap::new();
-
-        for (y, row) in self.pipes.iter().enumerate() {
-            for (x, pipe) in row.iter().enumerate() {
-                for inlet in pipe.inlets() {
-                    let neighbor_coords = match inlet {
-                        Direction::North => (x as i32, y as i32 - 1),
-                        Direction::South => (x as i32, y as i32 + 1),
-                        Direction::East => (x as i32 + 1, y as i32),
-                        Direction::West => (x as i32 - 1, y as i32),
-                    };
-
-                    if self
-                        .get(neighbor_coords.0, neighbor_coords.1)
-                        .inlets()
-                        .contains(&inlet.reverse())
-                    {
-                        let v = endings.entry((x, y)).or_default();
-                        v.push((neighbor_coords.0 as usize, neighbor_coords.1 as usize));
-                    }
-                }
-            }
-        }
-
-        return endings;
+    fn get_at(&self, coords: (usize, usize)) -> &Pipe {
+        self.pipes
+            .get(coords.1)
+            .and_then(|row| row.get(coords.0))
+            .unwrap_or(&Pipe::Ground)
     }
 
     fn start(&self) -> (usize, usize) {
@@ -169,48 +146,74 @@ impl PipeMaze {
             .unwrap()
     }
 
-    fn find_loop(&self, min_length: usize) -> Vec<(usize, usize)> {
+    fn walk_circuit(&self) -> HashSet<(usize, usize)> {
+        use Direction::*;
+
         let start = self.start();
-        let connections = self.connections();
+        let mut path = HashSet::new();
 
-        connections
-            .get(&start)
-            .unwrap()
+        let (mut node, mut node_direction) = vec![North, East, South, West]
             .iter()
-            .find_map(|start_next| {
-                let mut visited: Vec<(usize, usize)> = Vec::new();
-                let mut current = *start_next;
+            .find_map(|dir| {
+                let next_node = dir.translate(&start);
+                let next_pipe = self.get_at(next_node);
 
-                while current != start {
-                    visited.push(current);
-                    let next = connections
-                        .get(&current)
-                        .unwrap()
-                        .iter()
-                        .find(|n| !visited.contains(n));
-
-                    if let Some(next) = next {
-                        current = *next;
-                    } else {
-                        return None; // Not a loop
-                    }
-                }
-                visited.push(start);
-
-                return if visited.len() > min_length {
-                    Some(visited)
+                if next_pipe.inlets().contains(&dir.reverse()) {
+                    Some((next_node, *dir))
                 } else {
                     None
-                };
+                }
             })
-            .unwrap()
+            .unwrap();
+
+        path.insert(node);
+
+        while node != start {
+            let pipe = self.get_at(node);
+
+            node_direction = pipe.traverse(node_direction);
+            node = node_direction.translate(&node);
+
+            path.insert(node);
+        }
+
+        return path;
+    }
+
+    fn points_inside(&self, path: &HashSet<(usize, usize)>) -> HashSet<(usize, usize)> {
+        use Pipe::*;
+        
+        self.pipes
+            .iter()
+            .enumerate()
+            .flat_map(|(y, line)| {
+                line.iter().enumerate().filter_map(move |(x, _)| {
+                    if !path.contains(&(x, y)) {
+                        let crossed_pipes = (0..x)
+                            .filter(|x| path.contains(&(*x, y)))
+                            .filter(|x| match self.get_at((*x, y)) {
+                                NorthSouth | NorthWest | NorthEast | Start => true,
+                                _ => false,
+                            })
+                            .count();
+
+                        if crossed_pipes % 2 == 1 {
+                            return Some((x, y));
+                        }
+                    }
+                    return None;
+                })
+            })
+            .collect::<HashSet<_>>()
     }
 
     fn to_string(
         &self,
-        path: &Vec<(usize, usize)>,
+        path: &HashSet<(usize, usize)>,
         highlights: &HashSet<(usize, usize)>,
     ) -> String {
+        let hash_path = path.iter().collect::<HashSet<_>>();
+
         self.pipes
             .iter()
             .enumerate()
@@ -218,12 +221,12 @@ impl PipeMaze {
                 row.iter()
                     .enumerate()
                     .map(|(x, pipe)| {
-                        if path.contains(&(x, y)) {
+                        if hash_path.contains(&(x, y)) {
                             pipe.to_char()
                         } else if highlights.contains(&(x, y)) {
-                            '*'
-                        } else {
                             '.'
+                        } else {
+                            ' '
                         }
                     })
                     .join("")
@@ -232,119 +235,45 @@ impl PipeMaze {
     }
 }
 
-pub fn part1(input: String) {
+pub fn part1(input: &str) -> usize {
     let maze = PipeMaze::parse(&input);
-    let start = maze.start();
-    let connections = maze.connections();
 
-    let mut visited = HashSet::new();
-    let mut current = connections.get(&start).unwrap().get(0).unwrap();
-    let mut length = 1;
+    let path = maze.walk_circuit();
 
-    while current != &start {
-        println!("Visiting: {current:?}");
-
-        visited.insert(current);
-        let next = connections
-            .get(&current)
-            .unwrap()
-            .iter()
-            .find(|n| !visited.contains(n));
-
-        if let Some(next) = next {
-            length += 1;
-            current = next;
-        } else {
-            break;
-        }
-    }
-
-    println!("Loop length: {length}");
+    return path.len() / 2;
 }
 
-fn part2(input: String) {
-    let maze = PipeMaze::parse(&input);
-    let path = maze.find_loop(4);
-    let mut highlights: HashSet<(usize, usize)> = HashSet::new();
-    let mut directions: HashMap<(usize, usize), Direction> = HashMap::new();
+fn part2(input: &str) -> usize {
+    let maze = PipeMaze::parse(input);
+    let path = maze.walk_circuit();
+    let highlights = maze.points_inside(&path);
 
+    let display = maze.to_string(&path, &highlights);
+    println!("{}", display);
 
-    // for ((cx, cy), (nx, ny)) in path.iter().tuple_windows() {
-    //     let pipe = maze.get(*cx as i32, *cy as i32);
-    //
-    //     if cx == nx && ny > cy {
-    //         //North ^
-    //         directions.insert((*cx, *cy), Direction::North);
-    //         highlights.insert((cx - 1, *cy));
-    //         if pipe == Pipe::NorthEast {}
-    //     } else if cx == nx && cy > ny {
-    //         // South
-    //         directions.insert((*cx, *cy), Direction::South);
-    //         highlights.insert((cx + 1, *cy));
-    //     } else if cx > nx && cy == ny {
-    //         // West <-
-    //         directions.insert((*cx, *cy), Direction::West);
-    //         highlights.insert((*cx, cy + 1));
-    //         if pipe == Pipe::NorthEast {}
-    //     } else if nx > cx && cy == ny {
-    //         // East ->
-    //         directions.insert((*cx, *cy), Direction::East);
-    //         highlights.insert((*cx, cy - 1));
-    //     } else {
-    //         println!("Soft panic: unexpected {cx},{cy} to {nx},{ny}");
-    //     }
-    // }
-
-    // println!("Path: {:?}", path);
-
-    for (y, line) in maze.pipes.iter().enumerate() {
-        for (x, pipe) in line.iter().enumerate() {
-            if !path.contains(&(x, y)) {
-                let crossed_pipes = (0..x)
-                    .filter(|x| path.contains(&(*x, y)))
-                    .filter(|x| match maze.get(*x as i32, y as i32) {
-                        Pipe::NorthSouth => true,
-                        Pipe::NorthWest => true,
-                        Pipe::NorthEast => true,
-                        Pipe::Start => true,
-                        _ => false
-                    })
-                    .count();
-
-                if crossed_pipes % 2 == 1 {
-                    highlights.insert((x, y));
-                }
-            }
-        }
-    }
-
-    let display = maze.pipes
-        .iter()
-        .enumerate()
-        .map(|(y, row)| {
-            row.iter()
-                .enumerate()
-                .map(|(x, pipe)| {
-                    if path.contains(&(x, y)) {
-                        if directions.contains_key(&(x, y)) {
-                            pipe.to_directional_char(directions.get(&(x, y)).unwrap())
-                        } else {
-                            pipe.to_char()
-                        }
-                    } else if highlights.contains(&(x, y)) {
-                        '.'
-                    } else {
-                        ' '
-                    }
-                })
-                .join("")
-        })
-        .join("\n");
-
-    println!("{display}");
-    println!("Result: {}", highlights.len());
+    return highlights.len();
 }
 
 pub fn process(input: String) {
-    part2(input);
+    let result = part2(&input);
+    println!("Result: {result}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn part1_test() {
+        let input = include_str!("sharp.txt");
+        let result = part1(input);
+        assert_eq!(result, 7086);
+    }
+
+    #[test]
+    fn part2_test() {
+        let input = include_str!("sharp.txt");
+        let result = part2(input);
+        assert_eq!(result, 317);
+    }
 }
