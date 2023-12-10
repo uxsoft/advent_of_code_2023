@@ -181,41 +181,35 @@ fn parse(input: &str) -> Vec<(Hand, usize)> {
         .collect()
 }
 
-pub fn part1(input: String) {
+pub fn part1(input: &str) -> usize {
     let mut table = parse(&input);
     table.sort_by(|(a, _), (b, _)| a.cmp(b));
 
     let result: usize = table
         .iter()
         .enumerate()
-        .map(|(i, (h, b))| {
-            println!("{i}: Hand {h:?} bet {b}");
-            return b * (i + 1);
-        })
+        .map(|(i, (_h, b))| b * (i + 1))
         .sum();
 
-    println!("{:?}", result);
+    return result;
 }
 
-pub fn part2(input: String) {
-    let mut table = parse(&input);
+pub fn part2(input: &str) -> usize {
+    let mut table = parse(input);
     table.sort_by(|(a, _), (b, _)| a.cmp2(b));
 
     let result: usize = table
         .iter()
         .enumerate()
-        .map(|(i, (h, b))| {
-            println!("{i}: Hand {h:?} bet {b}");
-            return b * (i + 1);
-        })
+        .map(|(i, (_h, b))| b * (i + 1))
         .sum();
 
-    //248047349 too high
-    println!("{:?}", result);
+    return result;
 }
 
 pub fn process(input: String) {
-    part2(input);
+    let result = part2(&input);
+    println!("Result: {result}");
 }
 
 #[cfg(test)]
@@ -234,5 +228,38 @@ mod tests {
     }
 
     #[test]
-    fn hand_order() {}
+    fn part1_example() {
+        let input = "32T3K 765
+T55J5 684
+KK677 28
+KTJJT 220
+QQQJA 483";
+        let result = part1(input);
+        assert_eq!(result, 6440);
+    }
+
+    #[test]
+    fn part1_input() {
+        let input = include_str!("input.txt");
+        let result = part1(input);
+        assert_eq!(result, 249748283);
+    }
+
+    #[test]
+    fn part2_example() {
+        let input = "32T3K 765
+T55J5 684
+KK677 28
+KTJJT 220
+QQQJA 483";
+        let result = part2(input);
+        assert_eq!(result, 5905);
+    }
+
+    #[test]
+    fn part2_input() {
+        let input = include_str!("input.txt");
+        let result = part2(input);
+        assert_eq!(result, 248029057);
+    }
 }
