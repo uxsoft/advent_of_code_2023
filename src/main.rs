@@ -1,6 +1,6 @@
 use std::{env, fs, path::Path};
 
-mod day10;
+mod day8;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -9,5 +9,5 @@ fn main() {
 
     let input = fs::read_to_string(default_filename).expect("Wrong file location");
 
-    day10::process(input);
+    day8::process(input);
 }

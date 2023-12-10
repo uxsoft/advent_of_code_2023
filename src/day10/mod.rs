@@ -264,16 +264,58 @@ mod tests {
     use super::*;
 
     #[test]
+    fn part1_example() {
+        let input = "..F7.
+.FJ|.
+SJ.L7
+|F--J
+LJ...";
+        let result = part1(input);
+        assert_eq!(result, 8);
+    }
+
+    #[test]
     fn part1_test() {
-        let input = include_str!("sharp.txt");
+        let input = include_str!("input.txt");
         let result = part1(input);
         assert_eq!(result, 7086);
     }
 
     #[test]
     fn part2_test() {
-        let input = include_str!("sharp.txt");
+        let input = include_str!("input.txt");
         let result = part2(input);
         assert_eq!(result, 317);
+    }
+
+    #[test]
+    fn part2_example1() {
+        let input = "..........
+.S------7.
+.|F----7|.
+.||....||.
+.||....||.
+.|L-7F-J|.
+.|..||..|.
+.L--JL--J.
+..........";
+        let result = part2(input);
+        assert_eq!(result, 4);
+    }
+
+    #[test]
+    fn part2_example2() {
+        let input = ".F----7F7F7F7F-7....
+.|F--7||||||||FJ....
+.||.FJ||||||||L7....
+FJL7L7LJLJ||LJ.L-7..
+L--J.L7...LJS7F-7L7.
+....F-J..F7FJ|L7L7L7
+....L7.F7||L7|.L7L7|
+.....|FJLJ|FJ|F7|.LJ
+....FJL-7.||.||||...
+....L---J.LJ.LJLJ...";
+        let result = part2(input);
+        assert_eq!(result, 8);
     }
 }

@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-
 use regex::Regex;
 
 fn parse(input: &str) -> (&str, BTreeMap<&str, (&str, &str)>) {
@@ -26,8 +25,8 @@ fn parse(input: &str) -> (&str, BTreeMap<&str, (&str, &str)>) {
     return (instructions, map);
 }
 
-pub fn part1(input: String) {
-    let (directions, nodes) = parse(&input);
+pub fn part1(input: &str) -> u64 {
+    let (directions, nodes) = parse(input);
 
     let mut i = 0;
     let mut current_node = "AAA";
@@ -48,53 +47,18 @@ pub fn part1(input: String) {
         }
     }
 
-    println!("Result: {i}");
+    return i;
 }
 
-pub fn part2_bf(input: String) {
-    let (directions, nodes) = parse(&input);
-
-    let mut i: u64 = 0;
-    let mut current_nodes: Vec<&str> = nodes
-        .keys()
-        .filter(|n| n.ends_with("A"))
-        .map(|n| *n)
-        .collect();
-
-    for direction in directions.chars().cycle() {
-        // let (l, r) = nodes.get(current_node).unwrap();
-
-        current_nodes = current_nodes
-            .iter()
-            .map(|n| match direction {
-                'L' => nodes.get(*n).unwrap().0,
-                _ => nodes.get(*n).unwrap().1,
-            })
-            .collect();
-
-        i += 1;
-
-        if current_nodes.iter().all(|n| n.ends_with('Z')) {
-            break;
-        }
-
-        if i % 10_000_000 == 0 {
-            println!("{i}");
-        }
-    }
-
-    println!("Result: {i}");
-}
-
-pub fn part2_trends(input: String) {
-    let (directions, nodes) = parse(&input);
+pub fn part2(input: &str) -> u64{
+    let (directions, nodes) = parse(input);
 
     let mut cycles: Vec<u64> = vec![];
 
     for starting_node in nodes.keys().filter(|n| n.ends_with('A')) {
-        let mut i: usize = 0;
+        let mut i: u64 = 0;
         let mut current_node = starting_node;
-        let mut trends: Vec<(usize, usize)> = vec![];
+        let mut trends: Vec<(u64, u64)> = vec![];
 
         for (direction_pos, direction) in directions.chars().enumerate().cycle() {
             let (l, r) = nodes.get(current_node).unwrap();
@@ -110,10 +74,10 @@ pub fn part2_trends(input: String) {
             if current_node.ends_with('Z') {
                 let (_, last) = trends.last().unwrap_or(&(0, 0));
                 let delta = i - last;
-                let new_trend = (direction_pos, delta);
+                let new_trend = (direction_pos as u64, delta);
                 if trends.contains(&new_trend) {
                     trends.push(new_trend);
-                    cycles.push(delta as u64);
+                    cycles.push(delta);
                     println!("[{starting_node}]: {trends:?}");
                     break;
                 } else {
@@ -124,10 +88,72 @@ pub fn part2_trends(input: String) {
     }
     let lcm = reikna::factor::lcm_all(&cycles);
 
-    println!("Result: {lcm}");
-    // Then LCM (trends)
+    return lcm;
 }
 
 pub fn process(input: String) {
-    part2_trends(input)
+    let result = part2(&input);
+    println!("Result: {result}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+
+    fn part1_example1() {
+        let input = "RL
+
+AAA = (BBB, CCC)
+BBB = (DDD, EEE)
+CCC = (ZZZ, GGG)
+DDD = (DDD, DDD)
+EEE = (EEE, EEE)
+GGG = (GGG, GGG)
+ZZZ = (ZZZ, ZZZ)";
+        let result = part1(input);
+        assert_eq!(result, 2);
+    }
+
+    #[test]
+    fn part1_example2() {
+        let input = "LLR
+
+AAA = (BBB, BBB)
+BBB = (AAA, ZZZ)
+ZZZ = (ZZZ, ZZZ)";
+        let result = part1(input);
+        assert_eq!(result, 6);
+    }
+
+    #[test]
+    fn part1_input() {
+        let input = include_str!("input.txt");
+        let result = part1(input);
+        assert_eq!(result, 12737);
+    }
+
+    #[test]
+    fn part2_example() {
+        let input = "LR
+
+11A = (11B, XXX)
+11B = (XXX, 11Z)
+11Z = (11B, XXX)
+22A = (22B, XXX)
+22B = (22C, 22C)
+22C = (22Z, 22Z)
+22Z = (22B, 22B)
+XXX = (XXX, XXX)";
+        let result = part2(input);
+        assert_eq!(result, 6);
+    }
+
+    #[test]
+    fn part2_input() {
+        let input = include_str!("input.txt");
+        let result = part2(input);
+        assert_eq!(result, 9064949303801);
+    }
 }
