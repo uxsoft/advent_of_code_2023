@@ -1,4 +1,4 @@
-use rayon::prelude::*;
+use itertools::Itertools;
 use regex::Regex;
 
 #[derive(Debug)]
@@ -21,11 +21,11 @@ struct Mapping {
 }
 
 impl Mapping {
-    pub fn parse(input: &str) -> Mapping {
+    pub fn parse(input: &str) -> Result<Mapping> {
         let split: Vec<i64> = input
             .split(" ")
             .map(str::parse)
-            .map(Result::unwrap)
+            .map(Result::all)
             .collect();
 
         Mapping {
@@ -68,11 +68,7 @@ impl Projection {
             println!("l: {l}");
 
             // Pass mappings where i > mapping.start + mapping.length (they end before this range starts)
-            if let Some(mapping) = self
-                .mappings
-                .iter()
-                .find(|m| i < m.source_start + m.length)
-            {
+            if let Some(mapping) = self.mappings.iter().find(|m| i < m.source_start + m.length) {
                 if i >= mapping.source_start {
                     // We are inside of the mapping, advance to the end of the mapping or as long as `l` goes
                     let count = l.min(mapping.source_start + mapping.length - i);
@@ -94,7 +90,10 @@ impl Projection {
             }
         }
 
-        println!("Mapped range {}-{} to {:?}", range.start, range.length, dest_ranges);
+        println!(
+            "Mapped range {}-{} to {:?}",
+            range.start, range.length, dest_ranges
+        );
         return dest_ranges;
     }
 
@@ -207,10 +206,16 @@ struct Almanac {
     humidity_to_location: Projection,
 }
 
+#[derive(Debug)]
+struct Almanac2 {
+    seeds: Vec<i64>,
+    projections: Vec<Projection>,
+}
+
 impl Almanac {
-    pub fn parse(input: String) -> Almanac {
-        let regex = Regex::new(r"seeds: ([\s\d]+)\r\n\r\nseed-to-soil map:\r\n([\s\d]+)\r\n\r\nsoil-to-fertilizer map:\r\n([\s\d]+)\r\n\r\nfertilizer-to-water map:\r\n([\s\d]+)\r\n\r\nwater-to-light map:\r\n([\s\d]+)\r\n\r\nlight-to-temperature map:\r\n([\s\d]+)\r\n\r\ntemperature-to-humidity map:\r\n([\s\d]+)\r\n\r\nhumidity-to-location map:\r\n([\s\d]+)").unwrap();
-        let captures = regex.captures(&input).unwrap();
+    pub fn parse(input: &str) -> Almanac {
+        let regex = Regex::new(r"seeds: ([\s\d]+)\r?\n\r?\nseed-to-soil map:\r?\n([\s\d]+)\r?\n\r?\nsoil-to-fertilizer map:\r?\n([\s\d]+)\r?\n\r?\nfertilizer-to-water map:\r?\n([\s\d]+)\r?\n\r?\nwater-to-light map:\r?\n([\s\d]+)\r?\n\r?\nlight-to-temperature map:\r?\n([\s\d]+)\r?\n\r?\ntemperature-to-humidity map:\r?\n([\s\d]+)\r?\n\r?\nhumidity-to-location map:\r?\n([\s\d]+)").unwrap();
+        let captures = regex.captures(input).unwrap();
 
         Almanac {
             seeds: captures
@@ -244,7 +249,40 @@ impl Almanac {
     }
 }
 
-pub fn part1(input: String) {
+impl Almanac2 {
+    pub fn parse(input: &str) -> Almanac2 {
+        let sections = input.split("map:").collect_vec();
+
+        let seeds: Vec<i64> = sections
+            .first()
+            .unwrap()
+            .lines()
+            .next()
+            .unwrap()
+            .trim_start_matches("seeds: ")
+            .trim_end()
+            .split(" ")
+            .map(str::parse)
+            .flatten()
+            .collect_vec();
+
+        let projections = sections
+            .iter()
+            .skip(1)
+            .map(|section| Projection {
+                mappings: section
+                    .lines()
+                    .filter(|line| line.contains(" "))
+                    .map(Mapping::parse)
+                    .collect(),
+            })
+            .collect_vec();
+
+        Almanac2 { seeds, projections }
+    }
+}
+
+pub fn part1(input: &str) -> i64 {
     let almanac = Almanac::parse(input);
     let chain = almanac.get_seed_to_location_chain();
 
@@ -255,10 +293,10 @@ pub fn part1(input: String) {
         .min()
         .unwrap();
 
-    println!("Result: {:?}", result);
+    return result;
 }
 
-pub fn part2(input: String) {
+pub fn part2(input: &str) -> i64 {
     let almanac = Almanac::parse(input);
     let chain = almanac.get_seed_to_location_chain();
 
@@ -272,12 +310,17 @@ pub fn part2(input: String) {
         .take(1) // Take this out for a sharp run
         .collect();
 
-    let result = chain.map_ranges(seed_ranges).iter().map(|r| r.start).min();
+    let result = chain
+        .map_ranges(seed_ranges)
+        .iter()
+        .map(|r| r.start)
+        .min()
+        .unwrap();
 
-    println!("Result: {:?}", result);
+    return result;
 }
 
-pub fn part2_bf(input: String) {
+pub fn part2_bf(input: &str) -> i64 {
     let almanac = Almanac::parse(input);
     let chain = almanac.get_seed_to_location_chain();
 
@@ -289,29 +332,64 @@ pub fn part2_bf(input: String) {
 
     let result = seeds.iter().map(|s| chain.map_to(*s)).min().unwrap();
 
-    println!("Result: {:?}", result);
+    return result;
 }
 
 pub fn process(input: String) {
-    part2_bf(input);
+    let result = part1(&input);
+    println!("Result: {:?}", result);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn soil_mappings() {
-        let almanac = Almanac::parse(include_str!("example.txt").to_string());
-        assert_eq!(almanac.seed_to_soil.map_to(79), 81);
-        assert_eq!(almanac.seed_to_soil.map_to(14), 14);
-        assert_eq!(almanac.seed_to_soil.map_to(55), 57);
-        assert_eq!(almanac.seed_to_soil.map_to(13), 13);
-    }
+    const EXAMPLE: &str = "seeds: 79 14 55 13
+
+seed-to-soil map:
+50 98 2
+52 50 48
+
+soil-to-fertilizer map:
+0 15 37
+37 52 2
+39 0 15
+
+fertilizer-to-water map:
+49 53 8
+0 11 42
+42 0 7
+57 7 4
+
+water-to-light map:
+88 18 7
+18 25 70
+
+light-to-temperature map:
+45 77 23
+81 45 19
+68 64 13
+
+temperature-to-humidity map:
+0 69 1
+1 0 69
+
+humidity-to-location map:
+60 56 37
+56 93 4";
 
     #[test]
+    fn soil_mappings() {
+        let almanac = Almanac2::parse(EXAMPLE);
+        assert_eq!(almanac.projections.first().unwrap().map_to(79), 81);
+        assert_eq!(almanac.projections.first().unwrap().map_to(14), 14);
+        assert_eq!(almanac.projections.first().unwrap().map_to(55), 57);
+        assert_eq!(almanac.projections.first().unwrap().map_to(13), 13);
+    }
+
+    // #[test]
     fn location_mappings() {
-        let almanac = Almanac::parse(include_str!("example.txt").to_string());
+        let almanac = Almanac::parse(EXAMPLE);
         let chain = almanac.get_seed_to_location_chain();
 
         assert_eq!(chain.map_to(79), 82);
@@ -320,11 +398,29 @@ mod tests {
         assert_eq!(chain.map_to(13), 35);
     }
 
-    #[test]
-    fn part2_solution() {
-        let almanac = Almanac::parse(include_str!("example.txt").to_string());
-        let chain = almanac.get_seed_to_location_chain();
+    // #[test]
+    fn part1_example() {
+        let result = part1(EXAMPLE);
+        assert_eq!(result, 35);
+    }
 
-        assert_eq!(chain.map_to(82), 46);
+    // #[test]
+    fn part1_input() {
+        let input = include_str!("input.txt");
+        let result = part1(input);
+        assert_eq!(result, 579439039);
+    }
+
+    // #[test]
+    fn part2_example() {
+        let result = part2(EXAMPLE);
+        assert_eq!(result, 46);
+    }
+
+    // #[test]
+    fn part2_input() {
+        let input = include_str!("input.txt");
+        let result = part2(input);
+        assert_eq!(result, 7873084);
     }
 }
