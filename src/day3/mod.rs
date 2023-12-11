@@ -1,5 +1,3 @@
-use std::collections::VecDeque;
-
 struct Number {
     value: u32,
     x: usize,
@@ -14,7 +12,7 @@ struct Grid {
 }
 
 impl Grid {
-    pub fn parse(input: String) -> Grid {
+    pub fn parse(input: &str) -> Grid {
         let grid = input
             .lines()
             .map(|row| row.chars().collect::<Vec<_>>())
@@ -127,7 +125,7 @@ impl Number {
     }
 }
 
-pub fn part1(input: String) {
+pub fn part1(input: &str) -> u32 {
     let grid = Grid::parse(input);
 
     let result: u32 = grid
@@ -137,10 +135,10 @@ pub fn part1(input: String) {
         .map(|n| n.value)
         .sum();
 
-    println!("Result: {}", result);
+    return result;
 }
 
-pub fn process(input: String) {
+pub fn part2(input: &str) -> u32 {
     let grid = Grid::parse(input);
 
     let result: u32 = grid
@@ -156,5 +154,61 @@ pub fn process(input: String) {
         .map(|parts| parts.iter().map(|p| p.value).product::<u32>())
         .sum();
 
+    return result;
+}
+
+pub fn process(input: String) {
+    let result = part2(&input);
     println!("Result: {}", result);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn part1_example() {
+        let input = "467..114..
+...*......
+..35..633.
+......#...
+617*......
+.....+.58.
+..592.....
+......755.
+...$.*....
+.664.598..";
+        let result = part1(input);
+        assert_eq!(result, 4361);
+    }
+
+    #[test]
+    fn part1_input() {
+        let input = include_str!("input.txt");
+        let result = part1(input);
+        assert_eq!(result, 557705);
+    }
+
+    #[test]
+    fn part2_example() {
+        let input = "467..114..
+...*......
+..35..633.
+......#...
+617*......
+.....+.58.
+..592.....
+......755.
+...$.*....
+.664.598..";
+        let result = part2(input);
+        assert_eq!(result, 467835);
+    }
+
+    #[test]
+    fn part2_input() {
+        let input = include_str!("input.txt");
+        let result = part2(input);
+        assert_eq!(result, 84266818);
+    }
 }
