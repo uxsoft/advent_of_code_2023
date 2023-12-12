@@ -108,9 +108,12 @@ fn part2(input: &str) -> usize {
     return result;
 }
 
-pub fn process(input: String) {
+pub fn process(input: String) {    
+    use std::time::Instant;
+    let now = Instant::now();
     let result = part2(&input);
     println!("Result: {result}");
+    println!("Finished in: {:.2?}", now.elapsed());
 }
 
 #[cfg(test)]
