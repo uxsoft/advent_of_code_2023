@@ -38,6 +38,10 @@ impl Mapping {
     fn source_end(&self) -> i64 {
         self.source_start + self.length - 1
     }
+
+    fn offset(&self) -> i64 {
+        self.source_start - self.destination_start
+    }
 }
 
 #[derive(Debug)]
@@ -104,6 +108,10 @@ impl Projection {
         );
         return dest_ranges;
     }
+
+    // map_range2()
+    // MapRange.overlap(&other) -> (inside, outside)
+    // fold()
 
     pub fn map_ranges(&self, ranges: Vec<Range>) -> Vec<Range> {
         ranges.iter().flat_map(|r| self.map_range(r)).collect()
