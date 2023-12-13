@@ -8,23 +8,28 @@ fn parse(input: &str) -> Vec<Vec<&str>> {
     mirrors.map(|m| m.lines().collect_vec()).collect_vec()
 }
 
-fn detect_vertical_mirror(plane: &Vec<&str>) -> usize {
+fn find_vertical_mirror(plane: &Vec<&str>, expected_differences: usize) -> usize {
     let width = plane[0].len();
     for i in 0..width - 1 {
         let slice_length = i.min(width - i - 2);
 
-        let eq = plane.iter().all(|row| {
-            let row_eq = (0..=slice_length).all(|l| {
-                let left_row = row.as_bytes()[i - l];
-                let right_row = row.as_bytes()[i + l + 1];
+        let diff: usize = plane
+            .iter()
+            .map(|row| {
+                let row_diff: usize = (0..=slice_length)
+                    .filter(|l| {
+                        let left_row = row.as_bytes()[i - l];
+                        let right_row = row.as_bytes()[i + l + 1];
 
-                return left_row == right_row;
-            });
+                        return left_row != right_row;
+                    })
+                    .count();
 
-            return row_eq;
-        });
+                return row_diff;
+            })
+            .sum();
 
-        if eq {
+        if diff == expected_differences {
             return i + 1; // 1 based index
         }
     }
@@ -32,21 +37,27 @@ fn detect_vertical_mirror(plane: &Vec<&str>) -> usize {
     return 0;
 }
 
-fn detect_horizontal_mirror(plane: &Vec<&str>) -> usize {
+fn find_horizontal_mirror(plane: &Vec<&str>, expected_differences: usize) -> usize {
     let height = plane.len();
     for i in 0..height - 1 {
         let slice_length = i.min(height - i - 2);
 
-        let eq = (0..=slice_length).all(|l| {
-            // println!("Checking i: {i} :: {slice_length}, #{} = #{} < {height}", i - l, i + 1 + l);
+        let diff: usize = (0..=slice_length)
+            .map(|l| {
+                let top_row = plane[i - l];
+                let bottom_row = plane[i + 1 + l];
 
-            let top_row = plane[i - l];
-            let bottom_row = plane[i + 1 + l];
+                let diff_row = top_row
+                    .chars()
+                    .zip(bottom_row.chars())
+                    .filter(|(a, b)| a != b)
+                    .count();
 
-            return top_row == bottom_row;
-        });
+                return diff_row;
+            })
+            .sum();
 
-        if eq {
+        if diff == expected_differences {
             // println!("Equal {i}: {}");
             return i + 1; // 1 based index
         }
@@ -61,8 +72,8 @@ pub fn part1(input: &str) -> usize {
     let result = mirrors
         .iter()
         .map(|m| {
-            let v = detect_vertical_mirror(m);
-            let h = detect_horizontal_mirror(m);
+            let v = find_vertical_mirror(m, 0);
+            let h = find_horizontal_mirror(m, 0);
 
             // println!("hscore: {h}, vscore: {v}");
 
@@ -74,63 +85,33 @@ pub fn part1(input: &str) -> usize {
 }
 
 fn part2(input: &str) -> usize {
-    return 0;
+    let mirrors = parse(input);
+
+    let result = mirrors
+        .iter()
+        .map(|m| {
+            let v = find_vertical_mirror(m, 1);
+            let h = find_horizontal_mirror(m, 1);
+            return v + 100 * h;
+        })
+        .sum();
+
+    return result;
 }
 
 pub fn process(input: String) {
-    let result = part1(&input);
+    use std::time::Instant;
+    let now = Instant::now();
+    let result = part2(&input);
     println!("Result: {result}");
+    println!("Finished in: {:.2?}", now.elapsed());
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn part1_vm1() {
-        let input = "#.##..##.
-..#.##.#.
-##......#
-##......#
-..#.##.#.
-..##..##.
-#.#.##.#.";
-        let example = parse(input);
-        let result = detect_vertical_mirror(example.first().unwrap());
-        assert_eq!(result, 5);
-    }
-
-    #[test]
-    fn part1_hm1() {
-        let input = "#.##..##.
-..#.##.#.
-##......#
-##......#
-..#.##.#.
-..##..##.
-#.#.##.#.";
-        let example = parse(input);
-        let result = detect_horizontal_mirror(example.first().unwrap());
-        assert_eq!(result, 0);
-    }
-
-    #[test]
-    fn part1_hm2() {
-        let input = "#...##..#
-#....#..#
-..##..###
-#####.##.
-#####.##.
-..##..###
-#....#..#";
-        let example = parse(input);
-        let result = detect_horizontal_mirror(example.first().unwrap());
-        assert_eq!(result, 4);
-    }
-
-    #[test]
-    fn part1_example() {
-        let input = "#.##..##.
+    const EXAMPLE: &str = "#.##..##.
 ..#.##.#.
 ##......#
 ##......#
@@ -145,7 +126,10 @@ mod tests {
 #####.##.
 ..##..###
 #....#..#";
-        let result = part1(input);
+
+    #[test]
+    fn part1_example() {
+        let result = part1(EXAMPLE);
         assert_eq!(result, 405);
     }
 
@@ -153,20 +137,19 @@ mod tests {
     fn part1_input() {
         let input = include_str!("input.txt");
         let result = part1(input);
-        assert_eq!(result, 0);
+        assert_eq!(result, 35521);
     }
 
-    // #[test]
+    #[test]
     fn part2_example() {
-        let input = "";
-        let result = part2(input);
-        assert_eq!(result, 0);
+        let result = part2(EXAMPLE);
+        assert_eq!(result, 400);
     }
 
-    // #[test]
+    #[test]
     fn part2_input() {
         let input = include_str!("input.txt");
         let result = part2(input);
-        assert_eq!(result, 0);
+        assert_eq!(result, 34795);
     }
 }
