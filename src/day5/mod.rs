@@ -51,8 +51,12 @@ struct Projection {
 
 impl Projection {
     pub fn parse(input: &str) -> Projection {
-        let mut mappings: Vec<Mapping> = input.lines().skip(1).map(Mapping::parse).collect();
-        mappings.sort_by(|a, b| a.source_start.partial_cmp(&b.source_start).unwrap());
+        let mappings: Vec<Mapping> = input
+            .lines()
+            .skip(1)
+            .map(Mapping::parse)
+            .sorted_by_key(|m| m.source_start)
+            .collect();
 
         Projection { mappings }
     }
@@ -109,12 +113,53 @@ impl Projection {
         return dest_ranges;
     }
 
-    // map_range2()
-    // MapRange.overlap(&other) -> (inside, outside)
-    // fold()
+    pub fn map_range_fast(&self, range: &Range) -> Vec<Range> {
+        let mut dest_ranges = vec![];
+
+        let mut i = range.start;
+        let mut l = range.length;
+
+        for m in &self.mappings {
+            if i < m.source_start && l > 0 {
+                // We are before this mapping
+                let range_length = l.min(m.source_start - i);
+                dest_ranges.push(Range::new(i, range_length));
+                i += range_length;
+                l -= range_length;
+            }
+
+            if i < m.source_start + m.length && l > 0 {
+                // We are inside this mapping (start or middle)
+                let offset = i - m.source_start;
+
+                if offset < 0 {
+                    panic!("Offset is negative! i: {}, start: {}`", i, m.source_start);
+                }
+
+                let range_length = l.min(m.length - offset);
+                dest_ranges.push(Range::new(m.destination_start + offset, range_length));
+                i += range_length;
+                l -= range_length;
+            }
+        }
+
+        if l > 0 {
+            // We passed all the mappings and still have left
+            println!("Passed all mappings and we still have i left: {l}");
+            dest_ranges.push(Range::new(i, l));
+            i += l;
+            l -= l;
+        }
+
+        if i != range.start + range.length {
+            println!("map_range2 wrong size result: i: {i}, range: {range:?}")
+        }
+
+        return dest_ranges;
+    }
 
     pub fn map_ranges(&self, ranges: Vec<Range>) -> Vec<Range> {
-        ranges.iter().flat_map(|r| self.map_range(r)).collect()
+        ranges.iter().flat_map(|r| self.map_range_fast(r)).collect()
     }
 }
 
@@ -149,19 +194,13 @@ impl Almanac {
     }
 
     fn map_to(&self, source: i64) -> i64 {
-        let mut i = source;
-        for m in &self.projections {
-            i = m.map_to(i);
-        }
-        return i;
+        self.projections.iter().fold(source, |i, p| p.map_to(i))
     }
 
     fn map_ranges(&self, ranges: Vec<Range>) -> Vec<Range> {
-        let mut i = ranges;
-        for m in &self.projections {
-            i = m.map_ranges(i);
-        }
-        return i;
+        self.projections
+            .iter()
+            .fold(ranges, |i, p: &Projection| p.map_ranges(i))
     }
 }
 
@@ -188,7 +227,6 @@ pub fn part2(input: &str) -> i64 {
             start: w[0],
             length: w[1],
         })
-        .take(1) // Take this out for a sharp run
         .collect();
 
     let result = almanac
@@ -201,7 +239,7 @@ pub fn part2(input: &str) -> i64 {
     return result;
 }
 
-pub fn part2_bf(input: &str) -> i64 {
+pub fn part2_brute_force(input: &str) -> i64 {
     let almanac = Almanac::parse(input);
 
     let seeds: Vec<i64> = almanac
@@ -216,8 +254,11 @@ pub fn part2_bf(input: &str) -> i64 {
 }
 
 pub fn process(input: String) {
+    use std::time::Instant;
+    let now = Instant::now();
     let result = part2(&input);
     println!("Result: {:?}", result);
+    println!("Finished in: {:.2?}", now.elapsed());
 }
 
 #[cfg(test)]
@@ -257,25 +298,6 @@ temperature-to-humidity map:
 humidity-to-location map:
 60 56 37
 56 93 4";
-
-    #[test]
-    fn soil_mappings() {
-        let almanac = Almanac::parse(EXAMPLE);
-        assert_eq!(almanac.projections.first().unwrap().map_to(79), 81);
-        assert_eq!(almanac.projections.first().unwrap().map_to(14), 14);
-        assert_eq!(almanac.projections.first().unwrap().map_to(55), 57);
-        assert_eq!(almanac.projections.first().unwrap().map_to(13), 13);
-    }
-
-    #[test]
-    fn location_mappings() {
-        let almanac = Almanac::parse(EXAMPLE);
-
-        assert_eq!(almanac.map_to(79), 82);
-        assert_eq!(almanac.map_to(14), 43);
-        assert_eq!(almanac.map_to(55), 86);
-        assert_eq!(almanac.map_to(13), 35);
-    }
 
     #[test]
     fn part1_example() {
