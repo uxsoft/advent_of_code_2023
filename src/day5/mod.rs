@@ -77,8 +77,6 @@ impl Projection {
         let mut l = range.length;
 
         while l > 0 {
-            println!("l: {l}");
-
             // Pass mappings where i > mapping.start + mapping.length (they end before this range starts)
             if let Some(mapping) = self
                 .mappings
@@ -106,10 +104,6 @@ impl Projection {
             }
         }
 
-        println!(
-            "Mapped range {}-{} to {:?}",
-            range.start, range.length, dest_ranges
-        );
         return dest_ranges;
     }
 
@@ -132,10 +126,6 @@ impl Projection {
                 // We are inside this mapping (start or middle)
                 let offset = i - m.source_start;
 
-                if offset < 0 {
-                    panic!("Offset is negative! i: {}, start: {}`", i, m.source_start);
-                }
-
                 let range_length = l.min(m.length - offset);
                 dest_ranges.push(Range::new(m.destination_start + offset, range_length));
                 i += range_length;
@@ -145,14 +135,9 @@ impl Projection {
 
         if l > 0 {
             // We passed all the mappings and still have left
-            println!("Passed all mappings and we still have i left: {l}");
             dest_ranges.push(Range::new(i, l));
             i += l;
             l -= l;
-        }
-
-        if i != range.start + range.length {
-            println!("map_range2 wrong size result: i: {i}, range: {range:?}")
         }
 
         return dest_ranges;

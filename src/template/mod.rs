@@ -3,7 +3,7 @@ pub fn part1(input: &str) -> usize {
     return 0;
 }
 
-fn part2(input: &str) -> usize {
+pub fn part2(input: &str) -> usize {
 
     return 0;
 }

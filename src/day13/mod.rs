@@ -84,7 +84,7 @@ pub fn part1(input: &str) -> usize {
     return result;
 }
 
-fn part2(input: &str) -> usize {
+pub fn part2(input: &str) -> usize {
     let mirrors = parse(input);
 
     let result = mirrors

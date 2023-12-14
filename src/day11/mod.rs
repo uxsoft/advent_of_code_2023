@@ -20,7 +20,7 @@ pub fn part1(input: &str) -> usize {
     part2(input, 2)
 }
 
-fn part2(input: &str, factor: usize) -> usize {
+pub fn part2(input: &str, factor: usize) -> usize {
     let galaxies = parse(input);
     let dim_y = input.lines().count();
     let dim_x = input.lines().nth(0).unwrap().chars().count();
@@ -32,7 +32,7 @@ fn part2(input: &str, factor: usize) -> usize {
         .filter(|x| !galaxies.iter().any(|(gx, _)| gx == x))
         .collect_vec();
 
-    println!("Expansions: {:?} + {:?}", expansions_x, expansions_y);
+    // println!("Expansions: {:?} + {:?}", expansions_x, expansions_y);
 
     let expanded_galaxies = galaxies
         .iter()
@@ -48,7 +48,7 @@ fn part2(input: &str, factor: usize) -> usize {
         .tuple_combinations::<(_, _)>()
         .map(|((ax, ay), (bx, by))| {
             let distance = ax.abs_diff(*bx) + ay.abs_diff(*by);
-            println!("Distance between {ax},{ay} and {bx},{by} : {distance}");
+            // println!("Distance between {ax},{ay} and {bx},{by} : {distance}");
             return distance;
         })
         .sum();

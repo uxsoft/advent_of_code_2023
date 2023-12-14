@@ -32,7 +32,7 @@ fn part1(input: &str) -> i64 {
     return result;
 }
 
-fn part2(input: &str) -> i64 {
+pub fn part2(input: &str) -> i64 {
     let mut series = parse(input);
 
     for serie in series.iter_mut() {

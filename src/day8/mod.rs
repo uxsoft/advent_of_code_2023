@@ -78,7 +78,7 @@ pub fn part2(input: &str) -> u64{
                 if trends.contains(&new_trend) {
                     trends.push(new_trend);
                     cycles.push(delta);
-                    println!("[{starting_node}]: {trends:?}");
+                    // println!("[{starting_node}]: {trends:?}");
                     break;
                 } else {
                     trends.push(new_trend);

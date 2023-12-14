@@ -1,6 +1,6 @@
 use std::{env, fs, path::Path};
 
-mod day6;
+pub mod day6;
 
 fn main() {
     let _args: Vec<String> = env::args().collect();

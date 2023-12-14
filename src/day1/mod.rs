@@ -1,4 +1,4 @@
-fn part1(input: &str) -> u32 {
+pub fn part1(input: &str) -> u32 {
     let result: u32 = input
         .lines()
         .map(|line| {
@@ -14,7 +14,7 @@ fn part1(input: &str) -> u32 {
     return result;
 }
 
-fn part2(input: &str) -> u32 {
+pub fn part2(input: &str) -> u32 {
     let result: u32 = input
         .lines()
         .map(|line| {
@@ -32,7 +32,7 @@ fn part2(input: &str) -> u32 {
                 .filter(|char| char.is_ascii_digit())
                 .collect::<Vec<_>>();
             let number = format!("{}{}", numbers.first().unwrap(), numbers.last().unwrap());
-            println!("number: {number}");
+            // println!("number: {number}");
             return number.parse::<u32>().unwrap();
         })
         .sum();

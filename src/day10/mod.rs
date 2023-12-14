@@ -243,13 +243,13 @@ pub fn part1(input: &str) -> usize {
     return path.len() / 2;
 }
 
-fn part2(input: &str) -> usize {
+pub fn part2(input: &str) -> usize {
     let maze = PipeMaze::parse(input);
     let path = maze.walk_circuit();
     let highlights = maze.points_inside(&path);
 
     let display = maze.to_string(&path, &highlights);
-    println!("{}", display);
+    // println!("{}", display);
 
     return highlights.len();
 }

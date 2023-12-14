@@ -109,12 +109,12 @@ pub fn part1(input: &str) -> usize {
 
     let result = grid.north_load();
 
-    println!("{}", grid.to_string());
+    // println!("{}", grid.to_string());
 
     return result;
 }
 
-fn part2(input: &str) -> usize {
+pub fn part2(input: &str) -> usize {
     let iterations = 1000000000;
     let mut grid = Grid::parse(input);
 
@@ -130,7 +130,7 @@ fn part2(input: &str) -> usize {
         let state = grid.to_string();
         cycle_predictor.insert(i, grid.north_load());
         if let Some(before) = cycle_detector.get(&state) {
-            println!("Detected a cycle: {before}, {i}");
+            // println!("Detected a cycle: {before}, {i}");
             Some((*before, i))
         } else {
             cycle_detector.insert(state, i);
@@ -143,7 +143,7 @@ fn part2(input: &str) -> usize {
         let cycle_i = first_encounter + (iterations - first_encounter) % cycle_length;
         
         let result = cycle_predictor.get(&cycle_i).unwrap();
-        println!("Predicting a result {result} based on {cycle_i}");
+        // println!("Predicting a result {result} based on {cycle_i}");
 
         return *result;
     }

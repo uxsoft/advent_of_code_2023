@@ -70,22 +70,18 @@ pub fn part1(input: &str) -> u32 {
     return result;
 }
 
-fn part2(input: &str) -> u32 {
+pub fn part2(input: &str) -> u32 {
     let cards: Vec<ScratchCard> = input.lines().map(|line| ScratchCard::parse(line)).collect();
 
     let mut card_count: HashMap<u32, u32> = cards.iter().map(|card| (card.id, 1)).collect();
 
     for card in cards {
         let wins = card.matches();
-        println!("Card {} wins {}", card.id, wins);
+
         if wins > 0 {
             let duplicates = *card_count.get(&card.id).unwrap();
 
             for i in 1..=wins {
-                println!(
-                    "Adding {duplicates} duplicates of card {}",
-                    card.id + i as u32
-                );
                 card_count
                     .entry(card.id + i as u32)
                     .and_modify(|a| *a += duplicates);

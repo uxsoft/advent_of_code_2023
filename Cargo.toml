@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.75"
+divan = "0.1.7"
 indicatif = "0.17.7"
 itertools = "0.12.0"
 nom = "7.1.3"
@@ -14,3 +15,7 @@ nom-supreme = "0.8.0"
 rayon = "1.8.0"
 regex = "1.10.2"
 reikna = "0.12.3"
+
+[[bench]]
+name = "aoc_all"
+harness = false
