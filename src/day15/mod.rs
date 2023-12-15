@@ -1,20 +1,20 @@
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::{
-    collections::{BTreeMap, LinkedList, VecDeque},
-    str::FromStr,
-};
+use std::{collections::BTreeMap, str::FromStr};
 
+#[derive(Debug)]
 enum Operation {
     Remove,
-    Equals(usize),
+    Set,
 }
 
+#[derive(Debug)]
 struct Step {
     label: String,
     box_number: usize,
     operation: Operation,
+    focal_length: usize,
 }
 
 lazy_static! {
@@ -31,10 +31,14 @@ impl FromStr for Step {
             label: captures.get(1).unwrap().as_str().to_string(),
             box_number: hash(captures.get(1).unwrap().as_str()),
             operation: match captures.get(2).unwrap().as_str() {
-                "=" => Operation::Equals(captures.get(3).unwrap().as_str().parse().unwrap()),
+                "=" => Operation::Set,
                 "-" => Operation::Remove,
                 _ => panic!("Unexpected operation"),
             },
+            focal_length: captures
+                .get(3)
+                .map(|c| c.as_str().parse::<usize>().unwrap_or(0))
+                .unwrap_or(0),
         })
     }
 }
@@ -63,22 +67,43 @@ pub fn part2(input: &str) -> usize {
         .map(Result::unwrap)
         .collect_vec();
 
-    let mut boxes: BTreeMap<usize, Vec<Step>> = (0..=9).map(|i| (i, Vec::new())).collect();
+    let mut boxes: BTreeMap<usize, Vec<Step>> = (0..=256).map(|i| (i, Vec::new())).collect();
 
     for step in steps {
         match step.operation {
             Operation::Remove => {
                 let b = boxes.get_mut(&step.box_number).unwrap();
-                let (i, _) = b.iter().find_position(|(lens)| lens.label == step.label).unwrap();
-                b.remove(i);
+                if let Some((i, _)) = b.iter().find_position(|lens| lens.label == step.label) {
+                    b.remove(i);
+                }
             }
-            Operation::Equals(_) => {
-                todo!()
+            Operation::Set => {
+                let b = boxes
+                    .get_mut(&step.box_number)
+                    .expect(&format!("Expected a box with {}", &step.box_number));
+                if let Some((i, _)) = b.iter().find_position(|lens| lens.label == step.label) {
+                    b.remove(i);
+                    b.insert(i, step);
+                } else {
+                    b.push(step);
+                }
             }
         }
     }
 
-    return 0;
+    let result: usize = boxes
+        .iter()
+        .map(|(bi, b)| {
+            b.iter()
+                .enumerate()
+                .map(|(li, l)| (bi + 1) * (li + 1) * l.focal_length)
+                .sum::<usize>()
+        })
+        .sum();
+
+    // println!("{:?}", &boxes);
+
+    return result;
 }
 
 pub fn process(input: String) {
@@ -124,6 +149,6 @@ mod tests {
     fn part2_input() {
         let input = include_str!("input.txt");
         let result = part2(input);
-        assert_eq!(result, 0);
+        assert_eq!(result, 259333);
     }
 }

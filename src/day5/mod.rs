@@ -30,18 +30,6 @@ impl Mapping {
             length: *split.get(2).unwrap(),
         }
     }
-
-    fn destination_end(&self) -> i64 {
-        self.destination_start + self.length - 1
-    }
-
-    fn source_end(&self) -> i64 {
-        self.source_start + self.length - 1
-    }
-
-    fn offset(&self) -> i64 {
-        self.source_start - self.destination_start
-    }
 }
 
 #[derive(Debug)]
