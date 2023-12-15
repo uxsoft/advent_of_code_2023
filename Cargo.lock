@@ -10,6 +10,7 @@ dependencies = [
  "divan",
  "indicatif",
  "itertools",
+ "lazy_static",
  "nom",
  "nom-supreme",
  "rayon",
