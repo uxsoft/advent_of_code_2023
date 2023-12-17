@@ -11,24 +11,12 @@ enum Direction {
 }
 
 impl Direction {
-    fn apply(&self, x: i32, y: i32) -> Option<(i32, i32)> {
+    fn apply(&self, x: usize, y: usize) -> (usize, usize, Direction) {
         match self {
-            Direction::Right => Some((x + 1, y)),
-            Direction::Left => {
-                if x > 0 {
-                    Some((x - 1, y))
-                } else {
-                    None
-                }
-            }
-            Direction::Up => {
-                if x > 0 {
-                    Some((x, y - 1))
-                } else {
-                    None
-                }
-            }
-            Direction::Down => Some((x, y + 1)),
+            Direction::Right => (x + 1, y, *self),
+            Direction::Left => (x - 1, y, *self),
+            Direction::Up => (x, y - 1, *self),
+            Direction::Down => (x, y + 1, *self),
         }
     }
 }
@@ -40,70 +28,65 @@ fn parse(input: &str) -> Vec<Vec<char>> {
         .collect_vec()
 }
 
-fn energise(grid: &Vec<Vec<char>>, start: (i32, i32, Direction)) -> usize {
-    let mut visited: BTreeSet<(i32, i32, Direction)> = BTreeSet::new();
-    let mut energised: BTreeSet<(i32, i32)> = BTreeSet::new();
-    let mut beams: Vec<(i32, i32, Direction)> = Vec::new();
+fn energise(grid: &Vec<Vec<char>>, start: (usize, usize, Direction)) -> usize {
+    use Direction::*;
+
+    let mut visited: BTreeSet<(usize, usize, Direction)> = BTreeSet::new();
+    let mut energised: BTreeSet<(usize, usize)> = BTreeSet::new();
+    let mut beams: Vec<(usize, usize, Direction)> = Vec::new();
 
     beams.push(start);
 
-    while let Some((beam_x, beam_y, beam_dir)) = beams.pop() {
-        if !visited.contains(&(beam_x, beam_y, beam_dir)) {
-            visited.insert((beam_x, beam_y, beam_dir.clone()));
-            energised.insert((beam_x, beam_y));
+    while let Some((x, y, d)) = beams.pop() {
+        if !visited.contains(&(x, y, d)) {
+            visited.insert((x, y, d));
+            energised.insert((x, y));
         } else {
             continue;
         }
 
-        if let Some((next_x, next_y)) = beam_dir.apply(beam_x, beam_y) {
-            if let Some(c) = grid
-                .get(next_y as usize)
-                .and_then(|row| row.get(next_x as usize))
-            {
-                match c {
-                    '.' => {
-                        beams.push((next_x, next_y, beam_dir));
-                    }
-                    '\\' if beam_dir == Direction::Right => {
-                        beams.push((next_x, next_y, Direction::Down));
-                    }
-                    '\\' if beam_dir == Direction::Left => {
-                        beams.push((next_x, next_y, Direction::Up));
-                    }
-                    '\\' if beam_dir == Direction::Up => {
-                        beams.push((next_x, next_y, Direction::Left));
-                    }
-                    '\\' if beam_dir == Direction::Down => {
-                        beams.push((next_x, next_y, Direction::Right));
-                    }
-                    '/' if beam_dir == Direction::Right => {
-                        beams.push((next_x, next_y, Direction::Up));
-                    }
-                    '/' if beam_dir == Direction::Left => {
-                        beams.push((next_x, next_y, Direction::Down));
-                    }
-                    '/' if beam_dir == Direction::Up => {
-                        beams.push((next_x, next_y, Direction::Right));
-                    }
-                    '/' if beam_dir == Direction::Down => {
-                        beams.push((next_x, next_y, Direction::Left));
-                    }
-                    '|' if beam_dir == Direction::Right || beam_dir == Direction::Left => {
-                        beams.push((next_x, next_y, Direction::Up));
-                        beams.push((next_x, next_y, Direction::Down));
-                    }
-                    '|' if beam_dir == Direction::Up || beam_dir == Direction::Down => {
-                        beams.push((next_x, next_y, beam_dir));
-                    }
-                    '-' if beam_dir == Direction::Right || beam_dir == Direction::Left => {
-                        beams.push((next_x, next_y, beam_dir));
-                    }
-                    '-' if beam_dir == Direction::Up || beam_dir == Direction::Down => {
-                        beams.push((next_x, next_y, Direction::Left));
-                        beams.push((next_x, next_y, Direction::Right));
-                    }
-                    _ => (),
+        if let Some(c) = grid.get(x as usize).and_then(|row| row.get(y as usize)) {
+            match c {
+                '.' => {
+                    beams.push(d.apply(x, y));
                 }
+                '\\' => {
+                    beams.push(
+                        match d {
+                            Right => Down,
+                            Down => Right,
+                            Left => Up,
+                            Up => Left,
+                        }
+                        .apply(x, y),
+                    );
+                }
+                '/' => {
+                    beams.push(
+                        match d {
+                            Right => Up,
+                            Up => Right,
+                            Left => Down,
+                            Down => Left,
+                        }
+                        .apply(x, y),
+                    );
+                }
+                '|' if d == Direction::Right || d == Direction::Left => {
+                    beams.push(Up.apply(x, y));
+                    beams.push(Down.apply(x, y));
+                }
+                '|' if d == Direction::Up || d == Direction::Down => {
+                    beams.push(d.apply(x, y));
+                }
+                '-' if d == Direction::Up || d == Direction::Down => {
+                    beams.push(Left.apply(x, y));
+                    beams.push(Right.apply(x, y));
+                }
+                '-' if d == Direction::Right || d == Direction::Left => {
+                    beams.push(d.apply(x, y));
+                }
+                _ => (),
             }
         }
     }
@@ -115,19 +98,25 @@ fn energise(grid: &Vec<Vec<char>>, start: (i32, i32, Direction)) -> usize {
 pub fn part1(input: &str) -> usize {
     let grid = parse(input);
 
-    return energise(&grid, (-1, 0, Direction::Right));
+    return energise(&grid, (0, 0, Direction::Right));
 }
 
 pub fn part2(input: &str) -> usize {
     let grid = parse(input);
 
-    let from_left = (0..grid.len()).map(|y| (-1_i32, y as i32, Direction::Right));
-    let from_right = (0..grid.len()).map(|y| (grid[0].len() as i32, y as i32, Direction::Left));
+    let from_left = (0..grid.len()).map(|y| (0, y, Direction::Right));
+    let from_right = (0..grid.len()).map(|y| (grid[0].len() - 1, y, Direction::Left));
 
-    let from_top = (0..grid[0].len()).map(|x| (x as i32, -1_i32, Direction::Down));
-    let from_bottom = (0..grid.len()).map(|x| (x as i32, grid.len() as i32, Direction::Up));
+    let from_top = (0..grid[0].len()).map(|x| (x, 0, Direction::Down));
+    let from_bottom = (0..grid.len()).map(|x| (x, grid.len() - 1, Direction::Up));
 
-    let result = from_left.chain(from_right).chain(from_top).chain(from_bottom).map(|start| energise(&grid, start)).max().unwrap();
+    let result = from_left
+        .chain(from_right)
+        .chain(from_top)
+        .chain(from_bottom)
+        .map(|start| energise(&grid, start))
+        .max()
+        .unwrap();
 
     return result;
 }
@@ -179,6 +168,6 @@ mod tests {
     fn part2_input() {
         let input = include_str!("input.txt");
         let result = part2(input);
-        assert_eq!(result, 0);
+        assert_eq!(result, 7521);
     }
 }
