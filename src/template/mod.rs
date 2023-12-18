@@ -20,10 +20,11 @@ pub fn process(input: String) {
 mod tests {
     use super::*;
 
+    const EXAMPLE: &str = "";
+
     #[test]
     fn part1_example() {
-        let input = "";
-        let result = part1(input);
+        let result = part1(EXAMPLE);
         assert_eq!(result, 0);
     }
 
@@ -36,8 +37,7 @@ mod tests {
 
     #[test]
     fn part2_example() {
-        let input = "";
-        let result = part2(input);
+        let result = part2(EXAMPLE);
         assert_eq!(result, 0);
     }
 
