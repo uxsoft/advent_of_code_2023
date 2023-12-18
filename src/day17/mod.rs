@@ -1,7 +1,7 @@
 use glam::IVec2;
 use itertools::Itertools;
 use pathfinding::prelude::dijkstra;
-use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
+use std::collections::HashMap;
 
 fn parse(input: &str) -> HashMap<IVec2, u32> {
     input
@@ -15,78 +15,126 @@ fn parse(input: &str) -> HashMap<IVec2, u32> {
         .collect()
 }
 
-fn find_shortest_path(grid: &HashMap<IVec2, u32>) -> u32 {
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+enum Direction {
+    Up,
+    Down,
+    Right,
+    Left,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+struct Node {
+    pos: IVec2,
+    dir: Direction,
+    n_straight: u8,
+}
+
+impl Node {
+    fn new(x: i32, y: i32, dir: Direction, n_straight: u8) -> Self {
+        Self {
+            pos: IVec2::new(x, y),
+            dir,
+            n_straight,
+        }
+    }
+
+    fn successors(&self) -> Vec<Node> {
+        use Direction::*;
+
+        let mut result: Vec<Node> = Vec::new();
+
+        // Try add Down
+        if self.dir != Up && !(self.dir == Down && self.n_straight >= 3) {
+            let m_straight = if self.dir == Down {
+                self.n_straight + 1
+            } else {
+                1
+            };
+            result.push(Node::new(self.pos.x, self.pos.y + 1, Down, m_straight));
+        }
+
+        // Try add Up
+        if self.dir != Down && self.pos.y > 0 && !(self.dir == Up && self.n_straight >= 3) {
+            let m_straight = if self.dir == Up {
+                self.n_straight + 1
+            } else {
+                1
+            };
+            result.push(Node::new(self.pos.x, self.pos.y - 1, Up, m_straight));
+        }
+
+        // Try add Right
+        if self.dir != Left && !(self.dir == Right && self.n_straight >= 3) {
+            let m_straight = if self.dir == Right {
+                self.n_straight + 1
+            } else {
+                1
+            };
+            result.push(Node::new(self.pos.x + 1, self.pos.y, Right, m_straight));
+        }
+
+        // Try add Left
+        if self.dir != Right && self.pos.x > 0 && !(self.dir == Left && self.n_straight >= 3) {
+            let m_straight = if self.dir == Left {
+                self.n_straight + 1
+            } else {
+                1
+            };
+            result.push(Node::new(self.pos.x - 1, self.pos.y, Left, m_straight));
+        }
+
+        return result;
+    }
+}
+
+fn find_shortest_path(grid: &HashMap<IVec2, u32>) -> (Vec<Node>, u32) {
     let max_x = grid.keys().map(|i| i.x).max().unwrap();
     let max_y = grid.keys().map(|i| i.y).max().unwrap();
 
-    // let boundaries = IVec2::new(column_count, row_count);
-    let goal = IVec2::new(max_x, max_y);
+    let start = Node::new(0, 0, Direction::Right, 0);
+    let goal_pos = IVec2::new(max_x, max_y);
     let (path, distance) = dijkstra(
-        &(IVec2::splat(0), VecDeque::from([IVec2::splat(0)])),
-        |(position, deque)| {
-            [
-                IVec2::new(1, 0),
-                IVec2::new(-1, 0),
-                IVec2::new(0, -1),
-                IVec2::new(0, 1),
-            ]
-            .into_iter()
-            .filter_map(|pos_diff| {
-                let next_position = pos_diff + *position;
-                if grid.contains_key(&next_position) {
-                    if deque.len() > 2 && deque[1] == next_position {
-                        return None;
-                    }
-
-                    let mut new_deque = deque.clone();
-                    new_deque.push_front(next_position);
-                    if new_deque.len() == 5 {
-                        let dir = new_deque[1] - new_deque[0];
-                        let a = new_deque[2] - new_deque[1];
-                        let b = new_deque[3] - new_deque[2];
-                        let c = new_deque[4] - new_deque[3];
-                        // if we've moved in the same direction 4 times
-                        let three_forward_check = [a, b, c].iter().all(|a_dir| a_dir == &dir);
-
-                        if three_forward_check {
-                            None
-                        } else {
-                            new_deque.pop_back();
-                            Some((next_position, new_deque))
-                        }
-                    } else {
-                        Some((next_position, new_deque))
-                    }
-                } else {
-                    None
-                }
-            })
-            .map(|pos| {
-                let next_cost = *grid.get(&pos.0).unwrap();
-                (pos, next_cost)
-            })
-            .collect::<Vec<((IVec2, VecDeque<IVec2>), u32)>>()
+        &start,
+        |node| {
+            node.successors()
+                .iter()
+                .filter_map(|i| grid.get(&i.pos).map(|cost| (*i, *cost)))
+                .collect::<Vec<(Node, u32)>>()
         },
-        |(win, _deque)| {
-            // todo: Not too far in a straight
-            win == &goal
-        },
+        |node| node.pos == goal_pos,
     )
     .expect("should have a valid path");
 
-    return distance;
+    return (path, distance);
+}
+
+fn print_path(path: &Vec<Node>) -> String {
+    let max_x = path.iter().map(|i| i.pos.x).max().unwrap();
+    let max_y = path.iter().map(|i| i.pos.y).max().unwrap();
+
+    (0..=max_y)
+        .map(|y| {
+            (0..=max_x)
+                .map(|x| {
+                    let on_path = path.iter().any(|n| n.pos.x == x && n.pos.y == y);
+                    if on_path {
+                        '#'
+                    } else {
+                        ' '
+                    }
+                })
+                .join("")
+        })
+        .join("\n")
 }
 
 pub fn part1(input: &str) -> u32 {
     let grid = parse(input);
 
-    let d = find_shortest_path(&grid);
+    let (p, d) = find_shortest_path(&grid);
 
-    println!("{d:?}");
-
-    // let distance_to_bottom_right = d
-    //     .get(&(grid[0].len() - 1, grid.len() - 1))
-    //     .expect("Expected a distance to bottom right");
+    println!("{}", print_path(&p));
 
     return d;
 }
