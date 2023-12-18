@@ -14,7 +14,6 @@ dependencies = [
  "lazy_static",
  "nom",
  "nom-supreme",
- "nom_locate",
  "pathfinding",
  "rayon",
  "regex",
@@ -68,12 +67,6 @@ checksum = "c5839ee4f953e811bfdcf223f509cb2c6a3e1447959b0bff459405575bc17f22"
 dependencies = [
  "arrayvec",
 ]
-
-[[package]]
-name = "bytecount"
-version = "0.6.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1e5f035d16fc623ae5f74981db80a439803888314e3a555fd6f04acd51a3205"
 
 [[package]]
 name = "cfg-if"
@@ -362,17 +355,6 @@ dependencies = [
  "brownstone",
  "indent_write",
  "joinery",
- "memchr",
- "nom",
-]
-
-[[package]]
-name = "nom_locate"
-version = "4.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e3c83c053b0713da60c5b8de47fe8e494fe3ece5267b2f23090a07a053ba8f3"
-dependencies = [
- "bytecount",
  "memchr",
  "nom",
 ]
