@@ -1,6 +1,6 @@
-use glam::IVec2;
+use glam::I64Vec2;
 use itertools::Itertools;
-use std::str::FromStr;
+use std::{collections::HashSet, str::FromStr};
 
 #[derive(Debug)]
 enum Direction {
@@ -45,6 +45,25 @@ impl FromStr for Instruction {
     }
 }
 
+impl Instruction {
+    fn to_correct(&self) -> Instruction {
+        let length = &self.color[2..7];
+        let direction = &self.color[7..8];
+
+        Instruction {
+            direction: match direction {
+                "0" => Direction::Right,
+                "1" => Direction::Down,
+                "2" => Direction::Left,
+                "3" => Direction::Up,
+                _ => unreachable!("Didn't expect this direction"),
+            },
+            length: usize::from_str_radix(length, 16).unwrap(),
+            color: "".to_string(),
+        }
+    }
+}
+
 fn parse(input: &str) -> Vec<Instruction> {
     input
         .lines()
@@ -53,75 +72,158 @@ fn parse(input: &str) -> Vec<Instruction> {
         .collect_vec()
 }
 
-const GRID_WIDTH: usize = 400;
-const GRID_HEIGHT: usize = 400;
+fn print_trenches(trenches: &HashSet<I64Vec2>, detections: &HashSet<I64Vec2>) -> String {
+    let max_x = trenches.iter().map(|i| i.x).max().unwrap();
+    let max_y = trenches.iter().map(|i| i.y).max().unwrap();
+    let min_x = trenches.iter().map(|i| i.x).min().unwrap();
+    let min_y = trenches.iter().map(|i| i.y).min().unwrap();
 
-fn print_grid(grid: &[[bool; GRID_WIDTH]; GRID_HEIGHT]) -> String {
-    grid.map(|line| {
-        line.map(|i| match i {
-            true => "#",
-            false => " ",
+    (min_y..=max_y)
+        .map(|y| {
+            (min_x..=max_x)
+                .map(|x| {
+                    let key = I64Vec2::new(x, y);
+                    match trenches.contains(&key) {
+                        true => "#",
+                        false if detections.contains(&key) => ".",
+                        false => " ",
+                    }
+                })
+                .join("")
         })
-        .join("")
-    })
-    .join("\n")
+        .join("\n")
 }
 
-pub fn part1(input: &str) -> usize {
-    let instructions = parse(input);
-    let mut grid = [[false; GRID_WIDTH]; GRID_HEIGHT];
-    let trenches: Vec<IVec2> = Vec::new();
-    let mut x: usize = 0;
-    let mut y: usize = 0;
+fn trenches(instructions: &Vec<Instruction>) -> HashSet<I64Vec2> {
+    let mut trenches: HashSet<I64Vec2> = HashSet::new();
+    let mut x: i64 = 0;
+    let mut y: i64 = 0;
 
     for instruction in instructions {
         match instruction.direction {
             Direction::Right => {
                 for _ in 0..instruction.length {
-                    grid[y][x] = true;
-                    trenches.push(IVec2::new(x, y));
+                    trenches.insert(I64Vec2::new(x, y));
                     x += 1;
                 }
             }
             Direction::Left => {
                 for _ in 0..instruction.length {
-                    grid[y][x] = true;
-                    if x > 0 {
-                        x -= 1;
-                    }
+                    trenches.insert(I64Vec2::new(x, y));
+                    x -= 1;
                 }
             }
             Direction::Up => {
                 for _ in 0..instruction.length {
-                    grid[y][x] = true;
-                    if y > 0 {
-                        y -= 1;
-                    }
+                    trenches.insert(I64Vec2::new(x, y));
+                    y -= 1;
                 }
             }
             Direction::Down => {
                 for _ in 0..instruction.length {
-                    grid[y][x] = true;
+                    trenches.insert(I64Vec2::new(x, y));
                     y += 1;
                 }
             }
         }
     }
 
-    let s = print_grid(&grid);
-    println!("{s}");
+    return trenches;
+}
 
-    return 1;
+fn vertices(instructions: &Vec<Instruction>) -> Vec<I64Vec2> {
+    let mut vertices: Vec<I64Vec2> = Vec::new();
+    vertices.push(I64Vec2::new(0, 0));
+
+    let mut x: i64 = 0;
+    let mut y: i64 = 0;
+
+    for instruction in instructions {
+        match instruction.direction {
+            Direction::Right => {
+                x += instruction.length as i64;
+                vertices.push(I64Vec2::new(x, y));
+            }
+            Direction::Left => {
+                x -= instruction.length as i64;
+                vertices.push(I64Vec2::new(x, y));
+            }
+            Direction::Up => {
+                y -= instruction.length as i64;
+                vertices.push(I64Vec2::new(x, y));
+            }
+            Direction::Down => {
+                y += instruction.length as i64;
+                vertices.push(I64Vec2::new(x, y));
+            }
+        }
+    }
+
+    return vertices;
+}
+
+fn flood_fill(start: I64Vec2, trenches: &HashSet<I64Vec2>) -> HashSet<I64Vec2> {
+    let mut queue: Vec<I64Vec2> = Vec::new();
+    queue.push(start);
+
+    let mut visited: HashSet<I64Vec2> = HashSet::new();
+
+    while let Some(n) = queue.pop() {
+        if !trenches.contains(&n) && !visited.contains(&n) {
+            visited.insert(n);
+
+            queue.push(I64Vec2::new(n.x, n.y + 1));
+            queue.push(I64Vec2::new(n.x, n.y - 1));
+            queue.push(I64Vec2::new(n.x + 1, n.y));
+            queue.push(I64Vec2::new(n.x - 1, n.y));
+        }
+    }
+
+    return visited;
+}
+
+fn polygon_area(vertices: &Vec<I64Vec2>) -> f64 {
+    let mut total = 0.;
+
+    for i in 0..vertices.len() {
+        let add_x = vertices[i].x;
+        let add_y = vertices[if i == vertices.len() - 1 { 0 } else { i + 1 }].y;
+        let sub_x = vertices[if i == vertices.len() - 1 { 0 } else { i + 1 }].x;
+        let sub_y = vertices[i].y;
+
+        total += add_x as f64 * add_y as f64 * 0.5;
+        total -= sub_x as f64 * sub_y as f64 * 0.5;
+    }
+
+    return total.abs();
+}
+
+pub fn part1(input: &str) -> usize {
+    let instructions = parse(input);
+
+    let trenches = trenches(&instructions);
+
+    let fill = flood_fill(I64Vec2::new(1, 1), &trenches);
+
+    return trenches.len() + fill.len();
 }
 
 pub fn part2(input: &str) -> usize {
-    return 0;
+    let instructions = parse(input).iter().map(|i| i.to_correct()).collect_vec();
+    let vertices = vertices(&instructions);
+    let area1 = polygon_area(&vertices);
+
+    let perimeter_length: usize = instructions.iter().map(|i| i.length).sum();
+
+    let total_area = area1 as f64 + (perimeter_length as f64 / 2.) + 1.;
+
+    return total_area as usize;
 }
 
 pub fn process(input: String) {
     use std::time::Instant;
     let now = Instant::now();
-    let result = part1(&input);
+    let result = part2(&input);
     println!("Result: {result}");
     println!("Finished in: {:.2?}", now.elapsed());
 }
@@ -145,29 +247,29 @@ U 3 (#a77fa3)
 L 2 (#015232)
 U 2 (#7a21e3)";
 
-    // #[test]
+    #[test]
     fn part1_example() {
         let result = part1(EXAMPLE);
-        assert_eq!(result, 0);
+        assert_eq!(result, 62);
     }
 
     #[test]
     fn part1_input() {
         let input = include_str!("input.txt");
         let result = part1(input);
-        assert_eq!(result, 0);
+        assert_eq!(result, 49578);
     }
 
-    // #[test]
+    #[test]
     fn part2_example() {
         let result = part2(EXAMPLE);
-        assert_eq!(result, 0);
+        assert_eq!(result, 952408144115);
     }
 
-    // #[test]
+    #[test]
     fn part2_input() {
         let input = include_str!("input.txt");
         let result = part2(input);
-        assert_eq!(result, 0);
+        assert_eq!(result, 52885384955882);
     }
 }
