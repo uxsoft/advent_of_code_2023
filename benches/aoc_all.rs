@@ -133,3 +133,11 @@ mod day16;
 fn day16() {
     day16::part2(divan::black_box(include_str!("../src/day16/input.txt",)));
 }
+
+#[path = "../src/day17/mod.rs"]
+mod day17;
+
+#[divan::bench]
+fn day17() {
+    day17::part2(divan::black_box(include_str!("../src/day17/input.txt",)));
+}
