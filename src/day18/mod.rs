@@ -211,11 +211,12 @@ pub fn part1(input: &str) -> usize {
 pub fn part2(input: &str) -> usize {
     let instructions = parse(input).iter().map(|i| i.to_correct()).collect_vec();
     let vertices = vertices(&instructions);
-    let area1 = polygon_area(&vertices);
+    
+    let area = polygon_area(&vertices);
 
     let perimeter_length: usize = instructions.iter().map(|i| i.length).sum();
 
-    let total_area = area1 as f64 + (perimeter_length as f64 / 2.) + 1.;
+    let total_area = area as f64 + (perimeter_length as f64 / 2.) + 1.;
 
     return total_area as usize;
 }
