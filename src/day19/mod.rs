@@ -2,7 +2,7 @@ use indicatif::ProgressIterator;
 use itertools::Itertools;
 use lazy_static::*;
 use regex::Regex;
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Range};
 
 lazy_static! {
     static ref PART_REGEX: Regex = Regex::new(r"\{x=(\d+),m=(\d+),a=(\d+),s=(\d+)\}").unwrap();
@@ -39,6 +39,13 @@ impl Part {
     }
 }
 
+struct PartRange {
+    x: Range<usize>,
+    m: Range<usize>,
+    a: Range<usize>,
+    s: Range<usize>,
+}
+
 #[derive(Debug)]
 struct Workflow {
     name: String,
@@ -61,6 +68,14 @@ impl Workflow {
             .iter()
             .find_map(|rule| rule.test(part, workflows))
             .expect("Expected a workflow to yield a definite result")
+    }
+
+    fn test_range(
+        &self,
+        range: &PartRange,
+        workflows: &HashMap<String, Workflow>,
+    ) -> Vec<Range<usize>> {
+        vec![]
     }
 }
 
@@ -121,6 +136,32 @@ impl Rule {
             Rule::Result(result) => return Some(*result),
         }
     }
+
+    fn test_range(
+        &self,
+        range: &PartRange,
+        workflows: &HashMap<String, Workflow>,
+    ) -> Vec<PartRange> {
+        match self {
+            Rule::ConditionLess(char, threshold, if_passing) => {
+                if part.value(*char) < *threshold {
+                    if_passing.test(part, workflows)
+                } else {
+                    None
+                }
+            }
+            Rule::ConditionMore(char, threshold, if_passing) => {
+                if part.value(*char) > *threshold {
+                    if_passing.test(part, workflows)
+                } else {
+                    None
+                }
+            }
+            Rule::WorkflowRef(wf) => return Some(workflows[wf.as_str()].test(part, workflows)),
+            Rule::Result(result) if result => return Some(vec![range]),
+            Rule::Result(_) => return Some(vec![]),
+        }
+    }
 }
 
 fn parse(input: &str) -> (Vec<Workflow>, Vec<Part>) {
@@ -161,26 +202,19 @@ pub fn part2(input: &str) -> usize {
         .into_iter()
         .map(|wf| (wf.name.to_string(), wf))
         .collect();
+
     let start_wf = &workflow_map["in"];
+    let start_range = PartRange {
+        x: 0..=4000,
+        m: 0..=4000,
+        a: 0..=4000,
+        s: 0..=4000,
+    };
 
-    println!("Part2");
+    let results = start_wf.test_range(&range, &workflows);
+    dbg!(results);
 
-    let mut count = 0;
-
-    (0..=4000_usize)
-        .flat_map(|x| (0..=4000_usize).map(move |m| (x, m)))
-        .flat_map(|(x, m)| (0..=4000_usize).map(move |a| (x, m, a)))
-        .flat_map(|(x, m, a)| (0..=4000_usize).map(move |s| (x, m, a, s)))
-        .map(|(x, m, a, s)| Part { x, m, a, s })
-        .progress_count(4000 * 4000 * 4000 * 4000)
-        .for_each(|part| {
-            dbg!(&part);
-            if start_wf.test(&part, &workflow_map) {
-                count += 1
-            }
-        });
-
-    return count;
+    return 0;
 }
 
 pub fn process(input: String) {
@@ -229,7 +263,7 @@ hdj{m>838:A,pv}
     #[test]
     fn part2_example() {
         let result = part2(EXAMPLE);
-        assert_eq!(result, 0);
+        assert_eq!(result, 167409079868000);
     }
 
     // #[test]
