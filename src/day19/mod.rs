@@ -1,8 +1,15 @@
-use anyhow::Ok;
+use indicatif::ProgressIterator;
+use itertools::Itertools;
 use lazy_static::*;
 use regex::Regex;
-use std::str::FromStr;
+use std::collections::HashMap;
 
+lazy_static! {
+    static ref PART_REGEX: Regex = Regex::new(r"\{x=(\d+),m=(\d+),a=(\d+),s=(\d+)\}").unwrap();
+    static ref DOUBLE_LINE_REGEX: Regex = Regex::new(r"\r?\n\r?\n").unwrap();
+}
+
+#[derive(Debug)]
 struct Part {
     x: usize,
     m: usize,
@@ -10,45 +17,176 @@ struct Part {
     s: usize,
 }
 
-lazy_static! {
-    static ref PART_REGEX: Regex = Regex::new(r"\{x=(\d+),m=(\d+),a=(\d+),s=(\d+)\}").unwrap();
-}
-
-impl FromStr for Part {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+impl Part {
+    fn parse(s: &str) -> Part {
         let captures = PART_REGEX.captures(s).unwrap();
-        Ok(Part {
+        Part {
             x: captures.get(1).unwrap().as_str().parse().unwrap(),
             m: captures.get(2).unwrap().as_str().parse().unwrap(),
             a: captures.get(3).unwrap().as_str().parse().unwrap(),
             s: captures.get(4).unwrap().as_str().parse().unwrap(),
-        })
+        }
+    }
+
+    fn value(&self, c: char) -> usize {
+        match c {
+            'x' => self.x,
+            'm' => self.m,
+            'a' => self.a,
+            's' => self.s,
+            other => unreachable!("Should never ask for a part value `{other}`"),
+        }
     }
 }
 
+#[derive(Debug)]
 struct Workflow {
     name: String,
     rules: Vec<Rule>,
 }
 
-struct Rule {
-    name: String,
+impl Workflow {
+    fn parse(input: &str) -> Workflow {
+        let (name, rules_str) = input.trim_end_matches('}').split_once('{').unwrap();
+        let rules: Vec<Rule> = rules_str.split(',').map(Rule::parse).collect();
+
+        Workflow {
+            name: name.to_string(),
+            rules,
+        }
+    }
+
+    fn test(&self, part: &Part, workflows: &HashMap<String, Workflow>) -> bool {
+        self.rules
+            .iter()
+            .find_map(|rule| rule.test(part, workflows))
+            .expect("Expected a workflow to yield a definite result")
+    }
+}
+
+#[derive(Debug)]
+enum Rule {
+    ConditionLess(char, usize, Box<Rule>),
+    ConditionMore(char, usize, Box<Rule>),
+    WorkflowRef(String),
+    Result(bool),
+}
+
+impl Rule {
+    fn parse(input: &str) -> Rule {
+        use Rule::*;
+
+        match input {
+            s if s.contains('<') => {
+                let (char, rest) = s.split_once('<').unwrap();
+                let (threshold, result) = rest.split_once(':').unwrap();
+                ConditionLess(
+                    char.chars().next().unwrap(),
+                    threshold.parse().unwrap(),
+                    Box::new(Rule::parse(result)),
+                )
+            }
+            s if s.contains('>') => {
+                let (char, rest) = s.split_once('>').unwrap();
+                let (threshold, result) = rest.split_once(':').unwrap();
+                ConditionMore(
+                    char.chars().next().unwrap(),
+                    threshold.parse().unwrap(),
+                    Box::new(Rule::parse(result)),
+                )
+            }
+            "R" => Result(false),
+            "A" => Result(true),
+            wf => WorkflowRef(wf.to_string()),
+        }
+    }
+
+    fn test(&self, part: &Part, workflows: &HashMap<String, Workflow>) -> Option<bool> {
+        match self {
+            Rule::ConditionLess(char, threshold, if_passing) => {
+                if part.value(*char) < *threshold {
+                    if_passing.test(part, workflows)
+                } else {
+                    None
+                }
+            }
+            Rule::ConditionMore(char, threshold, if_passing) => {
+                if part.value(*char) > *threshold {
+                    if_passing.test(part, workflows)
+                } else {
+                    None
+                }
+            }
+            Rule::WorkflowRef(wf) => return Some(workflows[wf.as_str()].test(part, workflows)),
+            Rule::Result(result) => return Some(*result),
+        }
+    }
+}
+
+fn parse(input: &str) -> (Vec<Workflow>, Vec<Part>) {
+    let split = DOUBLE_LINE_REGEX.split(input).collect_vec();
+
+    let workflows: Vec<Workflow> = split.get(0).unwrap().lines().map(Workflow::parse).collect();
+
+    let parts: Vec<Part> = split.get(1).unwrap().lines().map(Part::parse).collect();
+
+    return (workflows, parts);
 }
 
 pub fn part1(input: &str) -> usize {
-    return 0;
+    let (workflows, parts) = parse(input);
+    let workflow_map: HashMap<String, Workflow> = workflows
+        .into_iter()
+        .map(|wf| (wf.name.to_string(), wf))
+        .collect();
+    let start_wf = &workflow_map["in"];
+
+    println!("Workflows: {:?}", workflow_map.values());
+    println!("Parts: {parts:?}");
+
+    let passing_parts = parts
+        .iter()
+        .filter(|p| start_wf.test(*p, &workflow_map))
+        .collect_vec();
+
+    println!("Passing Parts: {passing_parts:?}");
+
+    let result = passing_parts.iter().map(|p| p.x + p.m + p.a + p.s).sum();
+    return result;
 }
 
 pub fn part2(input: &str) -> usize {
-    return 0;
+    let (workflows, _) = parse(input);
+    let workflow_map: HashMap<String, Workflow> = workflows
+        .into_iter()
+        .map(|wf| (wf.name.to_string(), wf))
+        .collect();
+    let start_wf = &workflow_map["in"];
+
+    println!("Part2");
+
+    let mut count = 0;
+
+    (0..=4000_usize)
+        .flat_map(|x| (0..=4000_usize).map(move |m| (x, m)))
+        .flat_map(|(x, m)| (0..=4000_usize).map(move |a| (x, m, a)))
+        .flat_map(|(x, m, a)| (0..=4000_usize).map(move |s| (x, m, a, s)))
+        .map(|(x, m, a, s)| Part { x, m, a, s })
+        .progress_count(4000 * 4000 * 4000 * 4000)
+        .for_each(|part| {
+            dbg!(&part);
+            if start_wf.test(&part, &workflow_map) {
+                count += 1
+            }
+        });
+
+    return count;
 }
 
 pub fn process(input: String) {
     use std::time::Instant;
     let now = Instant::now();
-    let result = part1(&input);
+    let result = part2(&input);
     println!("Result: {result}");
     println!("Finished in: {:.2?}", now.elapsed());
 }
@@ -75,17 +213,17 @@ hdj{m>838:A,pv}
 {x=2461,m=1339,a=466,s=291}
 {x=2127,m=1623,a=2188,s=1013}";
 
-    #[test]
+    // #[test]
     fn part1_example() {
         let result = part1(EXAMPLE);
-        assert_eq!(result, 0);
+        assert_eq!(result, 19114);
     }
 
-    #[test]
+    // #[test]
     fn part1_input() {
         let input = include_str!("input.txt");
         let result = part1(input);
-        assert_eq!(result, 0);
+        assert_eq!(result, 362930);
     }
 
     #[test]
@@ -94,7 +232,7 @@ hdj{m>838:A,pv}
         assert_eq!(result, 0);
     }
 
-    #[test]
+    // #[test]
     fn part2_input() {
         let input = include_str!("input.txt");
         let result = part2(input);
