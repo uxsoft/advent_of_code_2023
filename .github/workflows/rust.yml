@@ -34,9 +34,15 @@ jobs:
       - name: Run benchmark
         run: cargo bench | tee output.txt
         
-      - name: Comment on the Pull Request
-        uses: machine-learning-apps/pr-comment@1.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Comment on PR
+        uses: actions/github-script@v7
         with:
-          path: output.txt
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            let fs = require('fs');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: fs.readFileSync('output.txt')
+            })`
