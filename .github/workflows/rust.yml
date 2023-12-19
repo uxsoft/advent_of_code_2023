@@ -26,7 +26,7 @@ jobs:
           path: target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
-      - uses: actions-rs/toolchain@1
+      - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
@@ -35,7 +35,7 @@ jobs:
         run: cargo bench | tee output.txt
         
       - name: Comment on the Pull Request
-        uses: machine-learning-apps/pr-comment@v1
+        uses: machine-learning-apps/pr-comment@1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
