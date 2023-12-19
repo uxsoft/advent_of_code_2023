@@ -35,6 +35,9 @@ jobs:
 
       - name: Run benchmark
         run: cargo build | tee output.txt
+
+      - name: Test
+        run: cat output.txt
         
       - name: Comment on the pull request
         uses: thollander/actions-comment-pull-request@v2
