@@ -1,4 +1,3 @@
-use indicatif::ProgressIterator;
 use itertools::Itertools;
 use lazy_static::*;
 use regex::Regex;
@@ -39,11 +38,68 @@ impl Part {
     }
 }
 
+#[derive(Debug, Clone)]
 struct PartRange {
     x: Range<usize>,
     m: Range<usize>,
     a: Range<usize>,
     s: Range<usize>,
+}
+
+impl PartRange {
+    fn value(&self, c: char) -> Range<usize> {
+        match c {
+            'x' => self.x.clone(),
+            'm' => self.m.clone(),
+            'a' => self.a.clone(),
+            's' => self.s.clone(),
+            other => unreachable!("Should never ask for a part value `{other}`"),
+        }
+    }
+
+    fn with(&self, c: char, value: Range<usize>) -> PartRange {
+        match c {
+            'x' => PartRange {
+                x: value,
+                m: self.m.clone(),
+                a: self.a.clone(),
+                s: self.s.clone(),
+            },
+            'm' => PartRange {
+                x: self.x.clone(),
+                m: value,
+                a: self.a.clone(),
+                s: self.s.clone(),
+            },
+            'a' => PartRange {
+                x: self.x.clone(),
+                m: self.m.clone(),
+                a: value,
+                s: self.s.clone(),
+            },
+            's' => PartRange {
+                x: self.x.clone(),
+                m: self.m.clone(),
+                a: self.a.clone(),
+                s: value,
+            },
+            other => unreachable!("Should never ask for a part value `{other}`"),
+        }
+    }
+
+    /// Splits the range into start..treshold (exclusive) and threshold..end (exclusive)
+    fn split(&self, c: char, treshold: usize) -> (PartRange, PartRange) {
+        if self.value(c).start >= treshold {
+            (self.with(c, 0..0), self.clone())
+        } else if self.value(c).end <= treshold {
+            (self.clone(), self.with(c, 0..0))
+        } else {
+            (
+                self.with(c, self.value(c).start..treshold),
+                self.with(c, treshold..self.value(c).end),
+            )
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -72,10 +128,26 @@ impl Workflow {
 
     fn test_range(
         &self,
-        range: &PartRange,
+        range: PartRange,
         workflows: &HashMap<String, Workflow>,
-    ) -> Vec<Range<usize>> {
-        vec![]
+    ) -> Vec<PartRange> {
+        let mut passing: Vec<PartRange> = Vec::new();
+        let mut next: Vec<PartRange> = vec![range];
+
+        for rule in &self.rules {
+            let mut new_next: Vec<PartRange> = vec![];
+
+            for r in next {
+                let test = rule.test_range(r, workflows);
+
+                passing.extend(test.passing);
+                new_next.extend(test.next);
+            }
+
+            next = new_next;
+        }
+
+        return passing;
     }
 }
 
@@ -85,6 +157,11 @@ enum Rule {
     ConditionMore(char, usize, Box<Rule>),
     WorkflowRef(String),
     Result(bool),
+}
+
+struct RangeTest {
+    next: Vec<PartRange>,
+    passing: Vec<PartRange>,
 }
 
 impl Rule {
@@ -137,29 +214,59 @@ impl Rule {
         }
     }
 
-    fn test_range(
-        &self,
-        range: &PartRange,
-        workflows: &HashMap<String, Workflow>,
-    ) -> Vec<PartRange> {
+    fn test_range(&self, range: PartRange, workflows: &HashMap<String, Workflow>) -> RangeTest {
         match self {
             Rule::ConditionLess(char, threshold, if_passing) => {
-                if part.value(*char) < *threshold {
-                    if_passing.test(part, workflows)
-                } else {
-                    None
+                let (l, m) = range.split(*char, *threshold);
+
+                let if_passing_test = if_passing.test_range(l, workflows);
+
+                let mut next = Vec::new();
+                next.push(m);
+                for i in if_passing_test.next {
+                    next.push(i);
+                }
+
+                RangeTest {
+                    passing: if_passing_test.passing,
+                    next,
                 }
             }
             Rule::ConditionMore(char, threshold, if_passing) => {
-                if part.value(*char) > *threshold {
-                    if_passing.test(part, workflows)
-                } else {
-                    None
+                let (l, m) = range.split(*char, *threshold + 1);
+
+                let if_passing_test = if_passing.test_range(m, workflows);
+
+                let mut next = Vec::new();
+                next.push(l);
+                for i in if_passing_test.next {
+                    next.push(i);
+                }
+
+                RangeTest {
+                    passing: if_passing_test.passing,
+                    next,
                 }
             }
-            Rule::WorkflowRef(wf) => return Some(workflows[wf.as_str()].test(part, workflows)),
-            Rule::Result(result) if result => return Some(vec![range]),
-            Rule::Result(_) => return Some(vec![]),
+            Rule::WorkflowRef(wf) => {
+                let wf_result = workflows[wf.as_str()].test_range(range, workflows);
+                RangeTest {
+                    next: vec![],
+                    passing: wf_result,
+                }
+            }
+            Rule::Result(true) => {
+                return RangeTest {
+                    next: vec![],
+                    passing: vec![range],
+                }
+            }
+            Rule::Result(false) => {
+                return RangeTest {
+                    next: vec![],
+                    passing: vec![],
+                }
+            }
         }
     }
 }
@@ -205,16 +312,26 @@ pub fn part2(input: &str) -> usize {
 
     let start_wf = &workflow_map["in"];
     let start_range = PartRange {
-        x: 0..=4000,
-        m: 0..=4000,
-        a: 0..=4000,
-        s: 0..=4000,
+        x: 1..4001,
+        m: 1..4001,
+        a: 1..4001,
+        s: 1..4001,
     };
 
-    let results = start_wf.test_range(&range, &workflows);
-    dbg!(results);
+    let results = start_wf.test_range(start_range, &workflow_map);
+    dbg!(&results);
 
-    return 0;
+    let result: usize = results
+        .iter()
+        .map(|r| {
+            (r.x.end - r.x.start)
+                * (r.m.end - r.m.start)
+                * (r.a.end - r.a.start)
+                * (r.s.end - r.s.start)
+        })
+        .sum();
+
+    return result;
 }
 
 pub fn process(input: String) {
@@ -266,10 +383,10 @@ hdj{m>838:A,pv}
         assert_eq!(result, 167409079868000);
     }
 
-    // #[test]
+    #[test]
     fn part2_input() {
         let input = include_str!("input.txt");
         let result = part2(input);
-        assert_eq!(result, 0);
+        assert_eq!(result, 116365820987729);
     }
 }
