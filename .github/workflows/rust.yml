@@ -35,7 +35,7 @@ jobs:
         run: cargo bench | tee output.txt
         
       - name: Comment on the Pull Request
-        uses: machine-learning-apps/pr-comment@1
+        uses: machine-learning-apps/pr-comment@1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
