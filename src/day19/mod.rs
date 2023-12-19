@@ -319,7 +319,6 @@ pub fn part2(input: &str) -> usize {
     };
 
     let results = start_wf.test_range(start_range, &workflow_map);
-    dbg!(&results);
 
     let result: usize = results
         .iter()
