@@ -33,21 +33,10 @@ jobs:
 
       - name: Run benchmark
         run: cargo bench | tee output.txt
-
-      - name: Download previous benchmark data
-        uses: actions/cache@v1
+        
+      - name: Comment on the Pull Request
+        uses: machine-learning-apps/pr-comment@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          path: ./cache
-          key: ${{ runner.os }}-benchmark
-
-      - name: Store benchmark result
-        uses: benchmark-action/github-action-benchmark@v1
-        with:
-          tool: 'cargo'
-          output-file-path: output.txt
-          external-data-json-path: ./cache/benchmark-data.json
-          fail-on-alert: false
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          comment-on-alert: true
-          summary-always: true
-          alert-comment-cc-users: '@uxsoft'
+          path: output.txt
