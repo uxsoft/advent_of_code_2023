@@ -34,10 +34,7 @@ jobs:
           override: true
 
       - name: Run benchmark
-        run: cargo build &> output.txt
-
-#      - name: Debug with tmate on failure
-#        uses: mxschmitt/action-tmate@v3
+        run: cargo bench &> output.txt
         
       - name: Comment on the pull request
         uses: thollander/actions-comment-pull-request@v2
