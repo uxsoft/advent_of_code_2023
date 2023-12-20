@@ -2,20 +2,90 @@ use itertools::Itertools;
 use std::collections::{BTreeMap, VecDeque};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ModuleKind {
-    Broadcaster,
-    Conjunction,
-    FlipFlop,
-}
-
-impl ModuleKind {
-    fn process() {}
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SignalKind {
+enum Pulse {
     Low,
     High,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ModuleKind {
+    Broadcaster,
+    Conjunction { memory: BTreeMap<String, Pulse> },
+    FlipFlop { is_on: bool },
+}
+
+#[derive(Debug, Clone)]
+struct Module {
+    name: String,
+    kind: ModuleKind,
+    destinations: Vec<String>,
+}
+
+type Signal<'a> = (String, String, Pulse);
+
+impl Module {
+    fn is_conjunction(&self) -> bool {
+        match self.kind {
+            ModuleKind::Conjunction { .. } => true,
+            _ => false,
+        }
+    }
+
+    fn receive_pulse(&mut self, sender: String, pulse: Pulse) -> Vec<Signal> {
+        match self.kind {
+            ModuleKind::Broadcaster => self
+                .destinations
+                .iter()
+                .map(|destination| (self.name.clone(), destination.clone(), pulse))
+                .collect_vec(),
+            ModuleKind::FlipFlop { ref mut is_on } => {
+                match (&is_on, pulse) {
+                    (false, Pulse::Low) => {
+                        *is_on = true;
+
+                        self.destinations
+                            .iter()
+                            .map(|destination| {
+                                (self.name.clone(), destination.clone(), Pulse::High)
+                            })
+                            .collect_vec()
+                    }
+                    (true, Pulse::Low) => {
+                        *is_on = false;
+
+                        self.destinations
+                            .iter()
+                            .map(|destination| (self.name.clone(), destination.clone(), Pulse::Low))
+                            .collect_vec()
+                    }
+                    (_, Pulse::High) => vec![], // High pulse when off is ignored
+                }
+            }
+            ModuleKind::Conjunction { ref mut memory } => {
+                memory.insert(sender, pulse);
+
+                let all_high = memory.values().all(|v| v == &Pulse::High);
+                let next_pulse = if all_high { Pulse::Low } else { Pulse::High };
+
+                self.destinations
+                    .iter()
+                    .map(|destination| (self.name.clone(), destination.clone(), next_pulse))
+                    .collect_vec()
+            }
+        }
+    }
+
+    fn init_memory(&mut self, modules: &Vec<Module>) {
+        match self.kind {
+            ModuleKind::Conjunction { ref mut memory } => modules
+                .iter()
+                .filter(|m| m.destinations.contains(&self.name))
+                .for_each(|m| {
+                    memory.insert(m.name.clone(), Pulse::Low);
+                }),
+            _ => (),
+        }
+    }
 }
 
 fn parse(input: &str) -> (BTreeMap<&str, ModuleKind>, BTreeMap<&str, Vec<&str>>) {
@@ -27,8 +97,13 @@ fn parse(input: &str) -> (BTreeMap<&str, ModuleKind>, BTreeMap<&str, Vec<&str>>)
 
         let (name, kind) = match name_str {
             s if s.starts_with("broadcaster") => (s, Broadcaster),
-            s if s.starts_with("%") => (s.trim_start_matches("%"), FlipFlop),
-            s if s.starts_with("&") => (s.trim_start_matches("&"), Conjunction),
+            s if s.starts_with("%") => (s.trim_start_matches("%"), FlipFlop { is_on: false }),
+            s if s.starts_with("&") => (
+                s.trim_start_matches("&"),
+                Conjunction {
+                    memory: BTreeMap::new(),
+                },
+            ),
             _ => unreachable!("Unexpected module kind when parsing"),
         };
 
@@ -40,194 +115,121 @@ fn parse(input: &str) -> (BTreeMap<&str, ModuleKind>, BTreeMap<&str, Vec<&str>>)
     return (kinds, destinations);
 }
 
-fn extract_result(factors: BTreeMap<&str, Vec<usize>>) -> usize {
-    let first_encounters = factors.values().map(|v| *v.first().unwrap()).collect_vec();
-    dbg!(factors);
-    println!("Got: {:?}", first_encounters);
-    println!("Expected: 3917, 3919, 4007, 4027");
-    let res2 = reikna::factor::lcm_all(&first_encounters.iter().map(|i| *i as u64).collect_vec());
+fn parse_modules(input: &str) -> BTreeMap<String, Module> {
+    use ModuleKind::*;
 
-    return 0;//res2 as usize;
+    input
+        .lines()
+        .map(|line| {
+            let (name_str, dest_str) = line.split_once(" -> ").unwrap();
+            let destinations = dest_str.split(", ").map(str::to_string).collect_vec();
+
+            let (name, kind) = match name_str {
+                s if s.starts_with("broadcaster") => (s.to_string(), Broadcaster),
+                s if s.starts_with("%") => (
+                    s.trim_start_matches("%").to_string(),
+                    FlipFlop { is_on: false },
+                ),
+                s if s.starts_with("&") => (
+                    s.trim_start_matches("&").to_string(),
+                    Conjunction {
+                        memory: BTreeMap::new(),
+                    },
+                ),
+                _ => unreachable!("Unexpected module kind when parsing"),
+            };
+
+            (
+                name.clone(),
+                Module {
+                    name,
+                    kind,
+                    destinations,
+                },
+            )
+        })
+        .collect()
 }
 
 pub fn part2(input: &str) -> usize {
-    let (kinds, destinations) = parse(input);
+    let mut modules = parse_modules(input);
 
-    let mut queue: VecDeque<(&str, &str, SignalKind)> = VecDeque::new();
+    // Init memory
+    let module_view = modules.values().cloned().collect_vec();
+    for module in modules.values_mut() {
+        module.init_memory(&module_view);
+    }
 
-    let mut ff_memory = BTreeMap::new();
-    let mut con_memory: BTreeMap<&str, BTreeMap<&str, SignalKind>> = destinations
-        .keys()
-        .filter(|n| kinds.get(**n).unwrap() == &ModuleKind::Conjunction)
-        .map(|n| {
-            let mem = destinations
-                .iter()
-                .filter(|(_, dl)| dl.contains(n))
-                .map(|(dn, _)| (*dn, SignalKind::Low))
-                .collect::<BTreeMap<&str, SignalKind>>();
-            (*n, mem)
+    // Find the target nodes
+    let monitored_nodes = modules
+        .values()
+        .filter(|m| m.destinations.contains(&"rx".to_string()))
+        .flat_map(|target| {
+            modules
+                .values()
+                .filter(|m| m.destinations.contains(&target.name))
+                .map(|m| m.name.clone())
         })
-        .collect();
+        .collect_vec();
 
-    let mut factors: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+    let mut queue: VecDeque<Signal> = VecDeque::new();
+
+    let mut factors: BTreeMap<String, u64> = BTreeMap::new();
 
     for i in 1.. {
-        queue.push_back(("button", "broadcaster", SignalKind::Low));
+        queue.push_back(("button".to_string(), "broadcaster".to_string(), Pulse::Low));
 
-        while let Some((sender, receiver, signal)) = queue.pop_front() {
-            // println!("{sender} -{signal:?}-> `{receiver}`");
-
-            if !kinds.contains_key(receiver) {
-                if signal == SignalKind::Low {
-                    return i;
-                } else {
-                    continue;
-                }
-            }
-
-            for mon in vec!["mp", "qt", "qb", "ng"] {
-                if receiver == mon && signal == SignalKind::Low {
-                    println!("{i}: Encountered LOW to {mon}");
-                    factors
-                        .entry(receiver)
-                        .and_modify(|v| v.push(i))
-                        .or_insert(vec![i]);
-                }
-            }
-
-            if factors.len() == 4 && factors.values().all(|v| v.len() > 2) {
-                return extract_result(factors);
-            }
-
-            match kinds.get(receiver).unwrap() {
-                ModuleKind::Broadcaster => {
-                    for destination in &destinations[receiver] {
-                        queue.push_back((receiver, destination, signal));
-                    }
-                }
-                ModuleKind::FlipFlop => {
-                    let is_on = ff_memory.entry(receiver).or_insert(false);
-                    match (is_on, signal) {
-                        (false, SignalKind::Low) => {
-                            ff_memory.insert(receiver, true);
-                            for destination in &destinations[receiver] {
-                                queue.push_back((receiver, destination, SignalKind::High));
-                            }
-                        }
-                        (true, SignalKind::Low) => {
-                            ff_memory.insert(receiver, false);
-                            for destination in &destinations[receiver] {
-                                queue.push_back((receiver, destination, SignalKind::Low));
-                            }
-                        }
-                        (_, SignalKind::High) => (), // High pulse when off is ignored
-                    }
-                }
-                ModuleKind::Conjunction => {
-                    let state = con_memory.entry(receiver).or_insert(BTreeMap::new());
-                    state.insert(sender, signal);
-
-                    let all_high = state.values().all(|v| v == &SignalKind::High);
-                    for destination in &destinations[receiver] {
-                        queue.push_back((
-                            receiver,
-                            destination,
-                            if all_high {
-                                SignalKind::Low
-                            } else {
-                                SignalKind::High
-                            },
-                        ));
+        while let Some((sender, receiver, pulse)) = queue.pop_front() {
+            for mon in monitored_nodes.iter() {
+                if &receiver == mon && pulse == Pulse::Low {
+                    if !factors.contains_key(mon) {
+                        factors.insert(mon.clone(), i as u64);
                     }
                 }
             }
+
+            modules.entry(receiver).and_modify(|m| {
+                let responses = m.receive_pulse(sender, pulse);
+                queue.extend(responses);
+            });
+        }
+
+        if factors.len() == 4 {
+            break;
         }
     }
 
-    dbg!(&factors);
-    return 1;
+    let res = reikna::factor::lcm_all(&factors.into_values().collect_vec());
+    return res as usize;
 }
 
 pub fn part1(input: &str) -> usize {
-    let (kinds, destinations) = parse(input);
+    let mut modules = parse_modules(input);
 
-    let mut queue: Vec<(&str, &str, SignalKind)> = vec![];
+    // Init memory
+    let module_view = modules.values().cloned().collect_vec();
+    for module in modules.values_mut() {
+        module.init_memory(&module_view);
+    }
+
+    let mut queue: VecDeque<Signal> = VecDeque::new();
 
     let mut low_counter = 0;
     let mut high_counter = 0;
 
-    let mut ff_memory = BTreeMap::new();
-    let mut con_memory: BTreeMap<&str, BTreeMap<&str, SignalKind>> = destinations
-        .keys()
-        .filter(|n| kinds.get(**n).unwrap() == &ModuleKind::Conjunction)
-        .map(|n| {
-            let mem = destinations
-                .iter()
-                .filter(|(_, dl)| dl.contains(n))
-                .map(|(dn, _)| (*dn, SignalKind::Low))
-                .collect::<BTreeMap<&str, SignalKind>>();
-            (*n, mem)
-        })
-        .collect();
-
     for _ in 0..1000 {
-        queue.push(("button", "broadcaster", SignalKind::Low));
+        queue.push_back(("button".to_string(), "broadcaster".to_string(), Pulse::Low));
 
-        while let Some((sender, receiver, signal)) = queue.pop() {
-            println!("{sender} -{signal:?}-> `{receiver}`");
-
-            match signal {
-                SignalKind::Low => low_counter += 1,
-                SignalKind::High => high_counter += 1,
+        while let Some((sender, receiver, pulse)) = queue.pop_front() {
+            match pulse {
+                Pulse::Low => low_counter += 1,
+                Pulse::High => high_counter += 1,
             }
 
-            if !kinds.contains_key(receiver) {
-                println!("Receiver {receiver} not found");
-                continue;
-            }
-
-            match kinds.get(receiver).unwrap() {
-                ModuleKind::Broadcaster => {
-                    for destination in &destinations[receiver] {
-                        queue.push((receiver, destination, signal));
-                    }
-                }
-                ModuleKind::FlipFlop => {
-                    let is_on = ff_memory.entry(receiver).or_insert(false);
-                    match (is_on, signal) {
-                        (false, SignalKind::Low) => {
-                            ff_memory.insert(receiver, true);
-                            for destination in &destinations[receiver] {
-                                queue.push((receiver, destination, SignalKind::High));
-                            }
-                        }
-                        (true, SignalKind::Low) => {
-                            ff_memory.insert(receiver, false);
-                            for destination in &destinations[receiver] {
-                                queue.push((receiver, destination, SignalKind::Low));
-                            }
-                        }
-                        (_, SignalKind::High) => (), // High pulse when off is ignored
-                    }
-                }
-                ModuleKind::Conjunction => {
-                    let state = con_memory.entry(receiver).or_insert(BTreeMap::new());
-                    state.insert(sender, signal);
-
-                    let all_high = state.values().all(|v| v == &SignalKind::High);
-                    for destination in &destinations[receiver] {
-                        queue.push((
-                            receiver,
-                            destination,
-                            if all_high {
-                                SignalKind::Low
-                            } else {
-                                SignalKind::High
-                            },
-                        ));
-                    }
-                }
-            }
+            modules.entry(receiver).and_modify(|m| {
+                let responses = m.receive_pulse(sender, pulse);
+                queue.extend(responses);
+            });
         }
     }
 
