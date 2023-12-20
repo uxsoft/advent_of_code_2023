@@ -9,6 +9,12 @@ enum ModuleKind {
     FlipFlop,
 }
 
+#[derive(Debug)]
+enum SignalKind {
+    Low,
+    High,
+}
+
 fn parse(input: &str) -> (BTreeMap<&str, ModuleKind>, BTreeMap<&str, Vec<&str>>) {
     use ModuleKind::*;
 
@@ -33,8 +39,21 @@ fn parse(input: &str) -> (BTreeMap<&str, ModuleKind>, BTreeMap<&str, Vec<&str>>)
 
 pub fn part1(input: &str) -> usize {
     let (kinds, destinations) = parse(input);
+    let mut queue: Vec<(&str, SignalKind)> = vec![];
+    queue.push(("broadcaster", SignalKind::Low));
 
-    
+    let mut counter = 0;
+
+    while let Some((receiver, signal)) = queue.pop() {
+        counter += 1;
+        match kinds.get(receiver).unwrap() {
+            ModuleKind::Broadcaster => {
+                
+            },
+            ModuleKind::Conjunction => todo!(),
+            ModuleKind::FlipFlop => todo!(),
+        }
+    }
 
     dbg!(&kinds);
     dbg!(&destinations);
