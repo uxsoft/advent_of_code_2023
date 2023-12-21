@@ -50,7 +50,7 @@ fn bfs(grid: &Vec<Vec<GardenPos>>, start: (usize, usize), steps: usize) -> usize
             .flat_map(|(x, y)| successors_inf(x, y, grid))
             .collect();
 
-        if i % grid.len() == 65 { // Magic number for input
+        if i % grid.len() == 65 { // Magic number for input (because steps % grid.len() is also 65)
             cycles.push(positions.len());
         }
 
