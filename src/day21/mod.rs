@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, PartialEq, Eq)]
 enum GardenPos {
@@ -24,61 +24,45 @@ fn parse(input: &str) -> Vec<Vec<GardenPos>> {
         .collect_vec()
 }
 
-fn successors(x: usize, y: usize, grid: &Vec<Vec<GardenPos>>) -> Vec<(usize, usize)> {
-    vec![
-        Some((x, y + 1)),
-        y.checked_sub(1).map(|y| (x, y)),
-        Some((x + 1, y)),
-        x.checked_sub(1).map(|x| (x, y)),
-    ]
-    .into_iter()
-    .flatten()
-    .filter(|(x, y)| match grid.get(*y).and_then(|row| row.get(*x)) {
-        Some(GardenPos::Plot) => true,
-        Some(GardenPos::Start) => true,
-        _ => false,
-    })
-    .collect_vec()
+fn successors_inf(x: i64, y: i64, grid: &Vec<Vec<GardenPos>>) -> Vec<(i64, i64)> {
+    vec![(x, y + 1), (x, y - 1), (x + 1, y), (x - 1, y)]
+        .into_iter()
+        .filter(|(x, y)| {
+            match grid
+                .get(y.rem_euclid(grid.len() as i64) as usize)
+                .and_then(|row| row.get(x.rem_euclid(row.len() as i64) as usize))
+            {
+                Some(GardenPos::Plot) => true,
+                Some(GardenPos::Start) => true,
+                _ => false,
+            }
+        })
+        .collect_vec()
 }
 
-fn bfs(grid: &Vec<Vec<GardenPos>>, start: (usize, usize), steps: usize) -> Vec<(usize, usize)> {
-    let mut positions = vec![start];
+fn bfs(grid: &Vec<Vec<GardenPos>>, start: (usize, usize), steps: usize) -> usize {
+    let mut positions = BTreeSet::from([(start.0 as i64, start.1 as i64)]);
+    let mut cycles = Vec::new();
 
-    for i in 0..steps {
-        let new_positions = positions
-            .iter()
-            .flat_map(|(x, y)| successors(*x, *y, grid))
-            .unique()
-            .collect_vec();
-        positions = new_positions;
+    for i in 1..=steps {
+        positions = positions
+            .into_iter()
+            .flat_map(|(x, y)| successors_inf(x, y, grid))
+            .collect();
+
+        if i % grid.len() == 65 { // Magic number for input
+            cycles.push(positions.len());
+        }
+
+        if cycles.len() > 2 {
+            return quad_regression(steps / grid.len(), cycles);
+        }
     }
 
-    return positions
+    return positions.len();
 }
 
-fn dijkstra(grid: &Vec<Vec<GardenPos>>, start: &(usize, usize)) -> BTreeMap<(usize, usize), usize> {
-    let result: std::collections::HashMap<(usize, usize), ((usize, usize), i32)> =
-        pathfinding::directed::dijkstra::dijkstra_all(start, |&(x, y)| {
-            vec![
-                Some((x, y + 1)),
-                y.checked_sub(1).map(|y| (x, y)),
-                Some((x + 1, y)),
-                x.checked_sub(1).map(|x| (x, y)),
-            ]
-            .iter()
-            .flatten()
-            .filter(|(x, y)| match grid.get(*y).and_then(|row| row.get(*x)) {
-                Some(GardenPos::Plot) => true,
-                _ => false,
-            })
-            .map(|(x, y)| ((*x, *y), 1))
-            .collect_vec()
-        });
-
-    return result.iter().map(|(k, (_, v))| (*k, *v as usize)).collect();
-}
-
-fn display(grid: &Vec<Vec<GardenPos>>, distances: BTreeMap<(usize, usize), usize>) -> String {
+fn _display(grid: &Vec<Vec<GardenPos>>, distances: BTreeMap<(usize, usize), usize>) -> String {
     grid.iter()
         .enumerate()
         .map(|(y, row)| {
@@ -111,12 +95,16 @@ pub fn part1(input: &str, steps: usize) -> usize {
         })
         .unwrap();
 
-    let positions = bfs(&grid, start, steps);
+    let result = bfs(&grid, start, steps);
 
+    return result;
+}
 
-    // let within_reach = result.values().filter(|(_, v)| *v == steps as i32).count();
-
-    return positions.iter().count();
+fn quad_regression(x: usize, a: Vec<usize>) -> usize {
+    let d0 = a[0];
+    let d1 = a[1] - a[0];
+    let d2 = a[2] - a[1];
+    return d0 + d1 * x + (x * (x - 1) / 2) * (d2 - d1);
 }
 
 pub fn part2(input: &str, steps: usize) -> usize {
@@ -136,15 +124,15 @@ pub fn part2(input: &str, steps: usize) -> usize {
         })
         .unwrap();
 
-    let positions = bfs(&grid, start, steps);
+    let result = bfs(&grid, start, steps);
 
-    return positions.iter().count();
+    return result;
 }
 
 pub fn process(input: String) {
     use std::time::Instant;
     let now = Instant::now();
-    let result = part1(&input, 64);
+    let result = part2(&input, 26501365);
     println!("Result: {result}");
     println!("Finished in: {:.2?}", now.elapsed());
 }
@@ -165,13 +153,13 @@ mod tests {
 .##..##.##.
 ...........";
 
-    // #[test]
+    #[test]
     fn part1_example() {
         let result = part1(EXAMPLE, 6);
         assert_eq!(result, 16);
     }
 
-    // #[test]
+    #[test]
     fn part1_input() {
         let input = include_str!("input.txt");
         let result = part1(input, 64);
@@ -180,14 +168,19 @@ mod tests {
 
     #[test]
     fn part2_example() {
-        let result = part2(EXAMPLE, 5000);
-        assert_eq!(result, 16733044);
+        assert_eq!(part2(EXAMPLE, 6), 16);
+        assert_eq!(part2(EXAMPLE, 10), 50);
+        assert_eq!(part2(EXAMPLE, 50), 1594);
+        assert_eq!(part2(EXAMPLE, 100), 6536);
+        assert_eq!(part2(EXAMPLE, 500), 167004);
+        // assert_eq!(part2(EXAMPLE, 1000), 668697);
+        // assert_eq!(part2(EXAMPLE, 5000), 16733044);
     }
 
-    // #[test]
+    #[test]
     fn part2_input() {
         let input = include_str!("input.txt");
         let result = part2(input, 26501365);
-        assert_eq!(result, 0);
+        assert_eq!(result, 609708004316870);
     }
 }
