@@ -1,6 +1,6 @@
 use glam::IVec3;
 use itertools::Itertools;
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 struct Brick {
@@ -52,7 +52,7 @@ fn parse(input: &str) -> Vec<Brick> {
 }
 
 struct Graph {
-    bricks: HashMap<usize, Brick>,
+    bricks: Vec<Brick>,
     layers: HashMap<usize, usize>,
     above: HashMap<usize, Vec<usize>>,
     below: HashMap<usize, Vec<usize>>,
@@ -61,9 +61,9 @@ impl Graph {
     fn new(bricks: Vec<Brick>) -> Graph {
         let bricks = bricks.into_iter().sorted_by_key(|b| b.from.z).collect_vec();
 
-        let mut layers = HashMap::new();
-        let mut above: HashMap<usize, Vec<usize>> = HashMap::new();
-        let mut below: HashMap<usize, Vec<usize>> = HashMap::new();
+        let mut layers: HashMap<usize, usize> = HashMap::new();
+        let mut above: HashMap<usize, Vec<usize>> = bricks.iter().map(|b| (b.id, vec![])).collect();
+        let mut below: HashMap<usize, Vec<usize>> = bricks.iter().map(|b| (b.id, vec![])).collect();
 
         for i in 0..bricks.len() {
             let brick = &bricks[i];
@@ -104,7 +104,7 @@ impl Graph {
         }
 
         Graph {
-            bricks: bricks.into_iter().map(|b| (b.id, b)).collect(),
+            bricks,
             layers,
             above,
             below,
@@ -128,7 +128,13 @@ impl Graph {
         removed.insert(brick.id);
 
         let mut queue = VecDeque::new();
-        for b_id in self.above.get(&brick.id).unwrap_or(&empty_vec) {
+        for b_id in self
+            .above
+            .get(&brick.id)
+            .unwrap_or(&empty_vec)
+            .iter()
+            .sorted_by_key(|b_id| self.layers[b_id])
+        {
             queue.push_back(b_id);
         }
 
@@ -140,13 +146,13 @@ impl Graph {
                 // If all below are removed, this node also falls
                 removed.insert(*b_id);
 
-                for ab_id in above_b {
+                for ab_id in above_b.iter().sorted_by_key(|b_id| self.layers[b_id]) {
                     queue.push_back(ab_id);
                 }
             }
         }
 
-        return removed.len();
+        return removed.len()-1;
     }
 }
 
@@ -156,7 +162,7 @@ pub fn part1(input: &str) -> usize {
 
     let stable_bricks = graph
         .bricks
-        .values()
+        .iter()
         .filter(|brick| graph.is_brick_stable(brick))
         .collect_vec();
 
@@ -169,10 +175,9 @@ pub fn part2(input: &str) -> usize {
 
     let result = graph
         .bricks
-        .values()
+        .iter()
         .map(|brick| graph.dependant_bricks(brick))
-        .max()
-        .unwrap();
+        .sum::<usize>();
 
     return result;
 }
@@ -180,7 +185,7 @@ pub fn part2(input: &str) -> usize {
 pub fn process(input: String) {
     use std::time::Instant;
     let now = Instant::now();
-    let result = part1(&input);
+    let result = part2(&input);
     println!("Result: {result}");
     println!("Finished in: {:.2?}", now.elapsed());
 }
@@ -220,7 +225,6 @@ mod tests {
     fn part2_input() {
         let input = include_str!("input.txt");
         let result = part2(input);
-        // 1321 is too low
-        assert_eq!(result, 0);
+        assert_eq!(result, 79122);
     }
 }
