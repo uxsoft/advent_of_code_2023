@@ -176,3 +176,11 @@ fn day21() {
         26501365,
     );
 }
+
+#[path = "../src/day22/mod.rs"]
+mod day22;
+
+#[divan::bench]
+fn day22() {
+    day22::part2(divan::black_box(include_str!("../src/day22/input.txt")));
+}
