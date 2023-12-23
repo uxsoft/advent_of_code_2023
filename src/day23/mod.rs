@@ -250,7 +250,7 @@ pub fn part2(input: &str) -> usize {
     let graph = HikingGraph::new(&map, starts[0]);
     let nodes = graph.neighbors.keys().collect_vec();
     let (_path, distance) = graph.longest_path(starts[0], end, BTreeSet::new()).unwrap();
-    println!("End: {:?}, nodes: {:?}", end, nodes);
+    // println!("End: {:?}, nodes: {:?}", end, nodes);
 
     return distance;
 }
