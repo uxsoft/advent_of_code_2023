@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashSet, VecDeque};
 
 use itertools::Itertools;
 
@@ -68,7 +68,7 @@ impl HikingMap {
     fn successors_no_slopes(
         &self,
         pos: (usize, usize),
-        visited: &BTreeSet<(usize, usize)>,
+        visited: &HashSet<(usize, usize)>,
     ) -> Vec<(usize, usize)> {
         let (x, y) = pos;
         let options = vec![(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)];
@@ -81,10 +81,10 @@ impl HikingMap {
     }
 
     fn successors_no_slopes_skip(&self, start: (usize, usize)) -> Vec<((usize, usize), usize)> {
-        self.successors_no_slopes(start, &BTreeSet::new())
+        self.successors_no_slopes(start, &HashSet::new())
             .into_iter()
             .map(|first_step| {
-                let mut visited: BTreeSet<_> = vec![start, first_step].into_iter().collect();
+                let mut visited: HashSet<_> = vec![start, first_step].into_iter().collect();
                 let mut distance = 0;
                 let mut node = first_step;
 
@@ -125,7 +125,7 @@ impl HikingMap {
         }
     }
 
-    fn print_path(&self, path: &BTreeSet<(usize, usize)>) -> String {
+    fn print_path(&self, path: &HashSet<(usize, usize)>) -> String {
         self.grid
             .iter()
             .enumerate()
@@ -146,16 +146,16 @@ impl HikingMap {
 
 struct HikingGraph {
     distances: BTreeMap<(usize, usize), BTreeMap<(usize, usize), usize>>,
-    neighbors: BTreeMap<(usize, usize), BTreeSet<(usize, usize)>>,
+    neighbors: BTreeMap<(usize, usize), HashSet<(usize, usize)>>,
 }
 
 impl HikingGraph {
     fn new(map: &HikingMap, start: (usize, usize)) -> HikingGraph {
         let mut distances: BTreeMap<(usize, usize), BTreeMap<(usize, usize), usize>> =
             BTreeMap::new();
-        let mut neighbors: BTreeMap<(usize, usize), BTreeSet<(usize, usize)>> = BTreeMap::new();
+        let mut neighbors: BTreeMap<(usize, usize), HashSet<(usize, usize)>> = BTreeMap::new();
 
-        let mut visited = BTreeSet::new();
+        let mut visited = HashSet::new();
         let mut queue = VecDeque::new();
         queue.push_back(start);
 
@@ -183,8 +183,8 @@ impl HikingGraph {
         &self,
         start: (usize, usize),
         end: (usize, usize),
-        visited: BTreeSet<(usize, usize)>,
-    ) -> Option<(BTreeSet<(usize, usize)>, usize)> {
+        visited: HashSet<(usize, usize)>,
+    ) -> Option<(HashSet<(usize, usize)>, usize)> {
         if start == end {
             let mut new_visited = visited.clone();
             new_visited.insert(end);
@@ -249,7 +249,7 @@ pub fn part2(input: &str) -> usize {
 
     let graph = HikingGraph::new(&map, starts[0]);
     let nodes = graph.neighbors.keys().collect_vec();
-    let (_path, distance) = graph.longest_path(starts[0], end, BTreeSet::new()).unwrap();
+    let (_path, distance) = graph.longest_path(starts[0], end, HashSet::new()).unwrap();
     // println!("End: {:?}, nodes: {:?}", end, nodes);
 
     return distance;
