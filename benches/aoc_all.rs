@@ -192,3 +192,19 @@ mod day23;
 fn day23() {
     day23::part2(divan::black_box(include_str!("../src/day23/input.txt")));
 }
+
+#[path = "../src/day24/mod.rs"]
+mod day24;
+
+#[divan::bench(max_time = 1)]
+fn day24() {
+    day24::part2(divan::black_box(include_str!("../src/day24/input.txt")));
+}
+
+#[path = "../src/day25/mod.rs"]
+mod day25;
+
+#[divan::bench(max_time = 1)]
+fn day25() {
+    day25::part1(divan::black_box(include_str!("../src/day25/input.txt")));
+}

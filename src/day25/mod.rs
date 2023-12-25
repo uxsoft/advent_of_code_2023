@@ -104,7 +104,7 @@ impl<'a> Graph<'a> {
             .keys()
             .tuple_combinations()
             .take(n)
-            .progress_count(n as u64)
+            // .progress_count(n as u64)
         {
             let path = self.shortest_path(from, to);
             for node in path {
@@ -131,7 +131,7 @@ pub fn part1(input: &str) -> usize {
     let max_n = graph.nodes.len() * (graph.nodes.len() - 1);
     let candidates = graph.min_cut_candidates(200.max(max_n / 100));
 
-    dbg!(&candidates);
+    // dbg!(&candidates);
 
     let mut partitioned_graph = graph.clone();
     for (from, to) in candidates.iter().tuple_combinations() {
@@ -145,7 +145,7 @@ pub fn part1(input: &str) -> usize {
         .dedup()
         .collect_vec();
 
-    dbg!(&sizes);
+    // dbg!(&sizes);
 
     return sizes.iter().product();
 }
