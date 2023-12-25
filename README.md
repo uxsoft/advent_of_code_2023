@@ -1,5 +1,7 @@
 # Advent of Code 2023
 
+<img src="bench.png">
+
 Run the current day:
 ```bash
 cargo watch -x "run --release"

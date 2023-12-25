@@ -62,11 +62,11 @@ fn winning_races_equation(time: u64, record_distance: u64) -> usize {
 
     // * D = b^2 - 4ac
     //  * so, t^2 - 4d
-    let D_root = (t * t - 4. * d).sqrt();
+    let d_root = (t * t - 4. * d).sqrt();
 
     // * x_1,2 = (-b +- sqrt of D)/2
-    let a = (t - D_root) / 2.;
-    let b = (t + D_root) / 2.;
+    let a = (t - d_root) / 2.;
+    let b = (t + d_root) / 2.;
 
     let min_time = (a + 0.0001).ceil() as usize;
     let max_time = (b - 0.0001).floor() as usize;
