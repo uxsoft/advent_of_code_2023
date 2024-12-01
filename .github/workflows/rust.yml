@@ -42,5 +42,5 @@ jobs:
       - name: Comment on the pull request
         uses: thollander/actions-comment-pull-request@v3
         with:
-          comment_tag: bench
-          filePath: output.txt
+          comment-tag: bench
+          file-path: output.txt
